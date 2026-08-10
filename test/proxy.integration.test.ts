@@ -3,7 +3,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { describe, expect, it } from 'vitest';
-import { McpProxy } from '@/proxy/proxy.js';
+import { McpProxy } from '@/proxy/proxy';
 
 describe('MCP proxy', () => {
   it('mirrors and forwards a tool call without changing its arguments', async () => {

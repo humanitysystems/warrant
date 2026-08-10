@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
-import { createAdminApp } from '@/admin/app.js';
-import { loadConfig } from '@/config/loader.js';
-import { McpProxy } from '@/proxy/proxy.js';
+import { createAdminApp } from '@/admin/app';
+import { loadConfig } from '@/config/loader';
+import { McpProxy } from '@/proxy/proxy';
 
 async function main(): Promise<void> {
   const config = await loadConfig(process.env.WARRANT_CONFIG ?? 'warrant.yaml');

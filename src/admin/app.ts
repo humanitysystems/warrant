@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { McpProxy } from '@/proxy/proxy.js';
+import type { McpProxy } from '@/proxy/proxy';
 
 export function createAdminApp(proxy: McpProxy, production = false): Hono {
   const app = new Hono();

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ProxyEvent } from '@/events/types.js';
+import type { ProxyEvent } from '@/events/types';
 
 type Listener = (event: ProxyEvent) => void;
 
