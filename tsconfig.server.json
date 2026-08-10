@@ -8,5 +8,12 @@
     "moduleResolution": "NodeNext",
     "jsx": "preserve"
   },
-  "include": ["src/server.ts", "src/config/**/*.ts", "src/proxy/**/*.ts", "src/transport/**/*.ts", "src/events/**/*.ts", "src/admin/**/*.ts"]
+  "include": [
+    "src/server.ts",
+    "src/config/**/*.ts",
+    "src/proxy/**/*.ts",
+    "src/transport/**/*.ts",
+    "src/events/**/*.ts",
+    "src/admin/**/*.ts"
+  ]
 }

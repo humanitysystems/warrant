@@ -5,13 +5,15 @@ describe('Registry', () => {
   it('tracks server state and namespaced tools', () => {
     const registry = new Registry();
     registry.register('files');
-    registry.setTools('files', [{
-      name: 'read_file',
-      exposedName: 'files__read_file',
-      downstreamName: 'read_file',
-      serverName: 'files',
-      inputSchema: { type: 'object' },
-    }]);
+    registry.setTools('files', [
+      {
+        name: 'read_file',
+        exposedName: 'files__read_file',
+        downstreamName: 'read_file',
+        serverName: 'files',
+        inputSchema: { type: 'object' },
+      },
+    ]);
     registry.setStatus('files', 'connected');
 
     expect(registry.findTool('files__read_file')?.downstreamName).toBe('read_file');

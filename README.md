@@ -70,9 +70,9 @@ or to the applicable OpenCode configuration:
       "type": "local",
       "command": ["node", "dist/server.js"],
       "cwd": "apps/warrant",
-      "enabled": true
-    }
-  }
+      "enabled": true,
+    },
+  },
 }
 ```
 

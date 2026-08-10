@@ -12,12 +12,18 @@ describe('MCP proxy', () => {
     let receivedArguments: Record<string, unknown> | undefined;
 
     const proxy = new McpProxy(
-      { server: { host: '127.0.0.1', adminPort: 8787 }, downstream: [{ name: 'demo', transport: 'stdio', command: 'unused', args: [] }] },
+      {
+        server: { host: '127.0.0.1', adminPort: 8787 },
+        downstream: [{ name: 'demo', transport: 'stdio', command: 'unused', args: [] }],
+      },
       undefined,
       async () => {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
         const client = new Client({ name: 'downstream-client', version: '1.0.0' });
-        const server = new Server({ name: 'fake-downstream', version: '1.0.0' }, { capabilities: { tools: {} } });
+        const server = new Server(
+          { name: 'fake-downstream', version: '1.0.0' },
+          { capabilities: { tools: {} } },
+        );
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tools: [{ name: 'echo', description: 'Echo input', inputSchema: { type: 'object' } }],
         }));
@@ -43,7 +49,9 @@ describe('MCP proxy', () => {
     expect(receivedArguments).toEqual({ value: 'hello' });
     expect(result.content).toEqual([{ type: 'text', text: '{"value":"hello"}' }]);
     expect(proxy.events.list().map((event) => event.kind)).toEqual([
-      'request.succeeded', 'request.started', 'server.connected',
+      'request.succeeded',
+      'request.started',
+      'server.connected',
     ]);
 
     await client.close();

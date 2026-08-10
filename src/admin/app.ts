@@ -25,23 +25,35 @@ export function createAdminApp(proxy: McpProxy, production = false): Hono {
   app.get('/api/servers', (c) => c.json({ servers: proxy.registry.serversList() }));
   app.get('/api/tools', (c) => c.json({ tools: proxy.registry.toolsList() }));
   app.get('/api/events', (c) => c.json({ events: proxy.events.list() }));
-  app.get('/api/events/stream', (c) => streamSSE(c, async (stream) => {
-    let wake: (() => void) | undefined;
-    let aborted = false;
-    const unsubscribe = proxy.events.subscribe((event) => {
-      void stream.writeSSE({ data: JSON.stringify(event), id: event.id });
-      wake?.();
-    });
+  app.get('/api/events/stream', (c) =>
+    streamSSE(c, async (stream) => {
+      let wake: (() => void) | undefined;
+      let aborted = false;
+      const unsubscribe = proxy.events.subscribe((event) => {
+        void stream.writeSSE({ data: JSON.stringify(event), id: event.id });
+        wake?.();
+      });
 
-    await stream.writeSSE({ data: JSON.stringify({ connected: true }), event: 'connected' });
-    const keepalive = setInterval(() => {
-      void stream.writeSSE({ data: '', event: 'keepalive' });
-    }, 15_000);
-    c.req.raw.signal.addEventListener('abort', () => { aborted = true; wake?.(); }, { once: true });
-    while (!aborted) await new Promise<void>((resolve) => { wake = resolve; });
-    clearInterval(keepalive);
-    unsubscribe();
-  }));
+      await stream.writeSSE({ data: JSON.stringify({ connected: true }), event: 'connected' });
+      const keepalive = setInterval(() => {
+        void stream.writeSSE({ data: '', event: 'keepalive' });
+      }, 15_000);
+      c.req.raw.signal.addEventListener(
+        'abort',
+        () => {
+          aborted = true;
+          wake?.();
+        },
+        { once: true },
+      );
+      while (!aborted)
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+      clearInterval(keepalive);
+      unsubscribe();
+    }),
+  );
 
   if (production) {
     const uiRoot = fileURLToPath(new URL('../ui', import.meta.url));

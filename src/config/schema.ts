@@ -10,10 +10,12 @@ const downstreamSchema = z.object({
 });
 
 export const warrantConfigSchema = z.object({
-  server: z.object({
-    host: z.string().default('127.0.0.1'),
-    adminPort: z.number().int().min(1).max(65535).default(8787),
-  }).default({}),
+  server: z
+    .object({
+      host: z.string().default('127.0.0.1'),
+      adminPort: z.number().int().min(1).max(65535).default(8787),
+    })
+    .default({}),
   downstream: z.array(downstreamSchema).default([]),
 });
 

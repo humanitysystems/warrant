@@ -15,7 +15,9 @@ import { Registry } from '@/proxy/registry.js';
 import type { RegisteredTool } from '@/proxy/types.js';
 
 type DownstreamState = DownstreamConnection & { name: string };
-export type DownstreamConnector = (config: WarrantConfig['downstream'][number]) => Promise<DownstreamConnection>;
+export type DownstreamConnector = (
+  config: WarrantConfig['downstream'][number],
+) => Promise<DownstreamConnection>;
 
 export class McpProxy {
   readonly registry = new Registry();
@@ -53,7 +55,10 @@ export class McpProxy {
     this.connected = false;
   }
 
-  private async connectServer(name: string, config: WarrantConfig['downstream'][number]): Promise<void> {
+  private async connectServer(
+    name: string,
+    config: WarrantConfig['downstream'][number],
+  ): Promise<void> {
     this.registry.register(name);
     try {
       const connection = await this.connect(config);
@@ -79,7 +84,9 @@ export class McpProxy {
 
   private registerHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.registry.toolsList().map(({ exposedName, ...tool }) => ({ ...tool, name: exposedName })),
+      tools: this.registry
+        .toolsList()
+        .map(({ exposedName, ...tool }) => ({ ...tool, name: exposedName })),
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
