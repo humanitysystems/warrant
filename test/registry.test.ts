@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Registry } from '../src/proxy/registry.js';
+import { Registry } from '@/proxy/registry.js';
 
 describe('Registry', () => {
   it('tracks server state and namespaced tools', () => {

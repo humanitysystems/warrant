@@ -1,10 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { DownstreamConfig } from '../config/schema.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { DownstreamConfig } from '@/config/schema.js';
 
 export type DownstreamConnection = {
   client: Client;
-  transport: StdioClientTransport;
+  transport: Transport;
 };
 
 export async function connectDownstream(config: DownstreamConfig): Promise<DownstreamConnection> {

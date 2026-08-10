@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventStore } from '../src/events/event-store.js';
+import { EventStore } from '@/events/event-store.js';
 
 describe('EventStore', () => {
   it('keeps newest events within its bound and notifies subscribers', () => {

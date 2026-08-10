@@ -1,4 +1,4 @@
-import type { RegisteredTool, ServerSnapshot, ServerStatus } from './types.js';
+import type { RegisteredTool, ServerSnapshot, ServerStatus } from '@/proxy/types.js';
 
 type MutableServer = ServerSnapshot;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createAdminApp } from '../src/admin/app.js';
-import { McpProxy } from '../src/proxy/proxy.js';
+import { createAdminApp } from '@/admin/app.js';
+import { McpProxy } from '@/proxy/proxy.js';
 
 describe('admin API', () => {
   it('exposes proxy status, servers, tools, and events', async () => {

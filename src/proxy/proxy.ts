@@ -8,11 +8,11 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { WarrantConfig } from '../config/schema.js';
-import { EventStore } from '../events/event-store.js';
-import { Registry } from './registry.js';
-import type { RegisteredTool } from './types.js';
-import { connectDownstream, type DownstreamConnection } from '../transport/downstream.js';
+import type { WarrantConfig } from '@/config/schema.js';
+import { EventStore } from '@/events/event-store.js';
+import { connectDownstream, type DownstreamConnection } from '@/transport/downstream.js';
+import { Registry } from '@/proxy/registry.js';
+import type { RegisteredTool } from '@/proxy/types.js';
 
 type DownstreamState = DownstreamConnection & { name: string };
 export type DownstreamConnector = (config: WarrantConfig['downstream'][number]) => Promise<DownstreamConnection>;

@@ -9,7 +9,7 @@
     "dev:server": "tsx src/server.ts",
     "dev:ui": "vite --host 127.0.0.1",
     "build": "npm run build:server && vite build",
-    "build:server": "tsc -p tsconfig.server.json",
+    "build:server": "tsc -p tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run"
@@ -29,6 +29,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.0.0",
+    "tsc-alias": "^1.9.1",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
     "vite": "^7.0.0",
