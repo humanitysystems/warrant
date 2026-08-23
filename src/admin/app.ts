@@ -24,7 +24,23 @@ export function createAdminApp(proxy: McpProxy, production = false): Hono {
   });
   app.get('/api/servers', (c) => c.json({ servers: proxy.registry.serversList() }));
   app.get('/api/tools', (c) => c.json({ tools: proxy.registry.toolsList() }));
-  app.get('/api/events', (c) => c.json({ events: proxy.events.list() }));
+  app.get('/api/events', (c) => {
+    const limitParam = c.req.query('limit');
+    const beforeParam = c.req.query('before');
+    const limit = limitParam !== undefined ? Number(limitParam) : undefined;
+    const before = beforeParam !== undefined ? Number(beforeParam) : undefined;
+    if (
+      (limit !== undefined && !Number.isInteger(limit)) ||
+      (before !== undefined && !Number.isInteger(before))
+    ) {
+      return c.json({ error: 'limit and before must be integers' }, 400);
+    }
+    const page = proxy.events.list({
+      ...(limit !== undefined ? { limit } : {}),
+      ...(before !== undefined ? { before } : {}),
+    });
+    return c.json(page);
+  });
   app.get('/api/events/stream', (c) =>
     streamSSE(c, async (stream) => {
       let wake: (() => void) | undefined;

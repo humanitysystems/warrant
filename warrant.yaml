@@ -2,4 +2,19 @@ server:
   host: 127.0.0.1
   adminPort: 8787
 
-downstream: []
+storage:
+  path: warrant.db
+
+policies:
+  defaultAction: allow
+  rules:
+    - id: no-writes
+      effect: block
+      match: '__write$'
+
+downstream:
+  - name: demo
+    transport: stdio
+    command: node
+    args:
+      - ./fixtures/demo-server.mjs

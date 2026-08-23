@@ -48,7 +48,7 @@ describe('MCP proxy', () => {
     expect(tools.tools.map((tool) => tool.name)).toEqual(['demo__echo']);
     expect(receivedArguments).toEqual({ value: 'hello' });
     expect(result.content).toEqual([{ type: 'text', text: '{"value":"hello"}' }]);
-    expect(proxy.events.list().map((event) => event.kind)).toEqual([
+    expect(proxy.events.list().events.map((event) => event.kind)).toEqual([
       'request.succeeded',
       'request.started',
       'server.connected',
