@@ -24,7 +24,15 @@ export function createAdminApp(proxy: McpProxy, production = false): Hono {
   });
   app.get('/api/servers', (c) => c.json({ servers: proxy.registry.serversList() }));
   app.get('/api/tools', (c) => c.json({ tools: proxy.registry.toolsList() }));
-  app.get('/api/events', (c) => c.json({ events: proxy.events.list() }));
+  app.get('/api/events', (c) => {
+    const limit = c.req.query('limit');
+    const before = c.req.query('before');
+    const page = proxy.events.list({
+      ...(limit !== undefined ? { limit: Number(limit) } : {}),
+      ...(before !== undefined ? { before: Number(before) } : {}),
+    });
+    return c.json(page);
+  });
   app.get('/api/events/stream', (c) =>
     streamSSE(c, async (stream) => {
       let wake: (() => void) | undefined;

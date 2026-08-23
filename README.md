@@ -45,6 +45,16 @@ server:
   host: 127.0.0.1
   adminPort: 8787
 
+storage:
+  path: warrant.db
+
+policies:
+  defaultAction: allow
+  rules:
+    - id: no-writes
+      effect: block
+      match: '__write$'
+
 downstream:
   - name: demo
     transport: stdio
@@ -52,6 +62,19 @@ downstream:
     args:
       - ./fixtures/demo-server.mjs
 ```
+
+### Policies
+
+Every proposed tool call is evaluated before it is forwarded downstream.
+Rules match on the exposed tool name (`<server>__<tool>`), by exact `tools`
+list or by `match` regex, and evaluation is **deny-overrides**: any matching
+`block` rule wins over any `allow`; otherwise an explicit allow passes; the
+`defaultAction` posture decides when nothing matches. Blocked calls return an
+`isError` result naming the rule, and every decision lands in the audit trail.
+
+The audit trail persists to the SQLite database at `storage.path` (created on
+first run) and survives restarts; `GET /api/events?limit=&before=` paginates
+newest-first via `nextCursor`.
 
 The initial implementation supports downstream stdio servers and a
 client-facing stdio transport. Streamable HTTP support is deliberately a
