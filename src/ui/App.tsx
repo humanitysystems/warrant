@@ -18,6 +18,7 @@ type Event = {
   serverName?: string;
   name?: string;
   durationMs?: number;
+  ruleId?: string;
   error?: { message: string };
 };
 
@@ -135,13 +136,20 @@ export function App() {
             <div className="event" key={event.id}>
               <time>{new Date(event.timestamp).toLocaleTimeString()}</time>
               <span
-                className={`event-kind ${event.kind.includes('failed') || event.kind.includes('error') ? 'danger' : ''}`}
+                className={`event-kind ${
+                  event.kind.includes('blocked') ||
+                  event.kind.includes('failed') ||
+                  event.kind.includes('error')
+                    ? 'danger'
+                    : ''
+                }`}
               >
                 {event.kind}
               </span>
               <span>{event.serverName ?? 'proxy'}</span>
               <code>{event.name ?? event.method ?? ''}</code>
               <span className="event-detail">
+                {event.ruleId ? `rule: ${event.ruleId} · ` : ''}
                 {event.durationMs !== undefined
                   ? `${event.durationMs}ms`
                   : (event.error?.message ?? '')}

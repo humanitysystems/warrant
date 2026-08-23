@@ -52,7 +52,6 @@ export const warrantConfigSchema = z.object({
 });
 
 export type PolicyConfig = z.infer<typeof warrantConfigSchema>['policies'];
-export type StorageConfig = z.infer<typeof warrantConfigSchema>['storage'];
 
 export type DownstreamConfig = z.infer<typeof downstreamSchema>;
 export type WarrantConfig = z.infer<typeof warrantConfigSchema>;

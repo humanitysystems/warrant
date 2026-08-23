@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
 import type { ProxyEvent } from '@/events/types';
 
 type EventInput = Partial<Omit<ProxyEvent, 'id' | 'timestamp' | 'seq'>> & {
@@ -18,23 +18,38 @@ export interface EventPage {
   nextCursor?: number;
 }
 
+type SqliteDatabase = {
+  exec(sql: string): void;
+  prepare(sql: string): {
+    run(...params: unknown[]): { lastInsertRowid: number | string };
+    all(...params: unknown[]): Record<string, unknown>[];
+  };
+  close(): void;
+};
+
 const DEFAULT_PAGE_LIMIT = 100;
 
-function assertSqliteAvailable(): void {
-  if (DatabaseSync === undefined) {
+function openDatabase(path: string): SqliteDatabase {
+  try {
+    const require = createRequire(import.meta.url);
+    const { DatabaseSync } = require('node:sqlite') as {
+      DatabaseSync: new (path: string) => SqliteDatabase;
+    };
+    return new DatabaseSync(path);
+  } catch (error) {
     throw new Error(
-      'node:sqlite is unavailable in this Node build. Use Node >=22.12 (or >=23.4), or run Node 22 with the --experimental-sqlite flag.',
+      'node:sqlite is unavailable in this Node build. Use Node >=22.12 (or >=23.4); on early Node 22 releases pass --experimental-sqlite.',
+      { cause: error },
     );
   }
 }
 
 export class EventStore {
-  private readonly db: DatabaseSync;
+  private readonly db: SqliteDatabase;
   private readonly listeners = new Set<Listener>();
 
   constructor(options: { path?: string } = {}) {
-    assertSqliteAvailable();
-    this.db = new DatabaseSync(options.path ?? ':memory:');
+    this.db = openDatabase(options.path ?? ':memory:');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,

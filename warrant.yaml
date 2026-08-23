@@ -12,4 +12,9 @@ policies:
       effect: block
       match: '__write$'
 
-downstream: []
+downstream:
+  - name: demo
+    transport: stdio
+    command: node
+    args:
+      - ./fixtures/demo-server.mjs

@@ -1,20 +1,9 @@
-export type PolicyEffect = 'allow' | 'block';
+import type { PolicyConfig } from '@/config/schema';
 
-export interface PolicyRule {
-  id: string;
-  effect: PolicyEffect;
-  tools?: string[];
-  match?: string;
-}
-
-export interface PolicyConfig {
-  defaultAction: 'allow' | 'block';
-  rules: PolicyRule[];
-}
+export type { PolicyConfig };
 
 export interface ToolCallRef {
   exposedName: string;
-  serverName: string;
 }
 
 export type Verdict =
@@ -23,7 +12,7 @@ export type Verdict =
 const DEFAULT_BLOCK_RULE_ID = 'default';
 
 export class PolicyEngine {
-  private readonly rules: { rule: PolicyRule; regex?: RegExp }[];
+  private readonly rules: { rule: PolicyConfig['rules'][number]; regex?: RegExp }[];
 
   constructor(private readonly config: PolicyConfig) {
     this.rules = config.rules.map((rule) => ({

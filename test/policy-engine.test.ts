@@ -8,7 +8,7 @@ describe('PolicyEngine', () => {
       rules: [{ id: 'no-writes', effect: 'block', tools: ['demo__write_file'] }],
     });
 
-    const verdict = engine.evaluate({ exposedName: 'demo__write_file', serverName: 'demo' });
+    const verdict = engine.evaluate({ exposedName: 'demo__write_file' });
 
     expect(verdict).toEqual({
       action: 'block',
@@ -23,7 +23,7 @@ describe('PolicyEngine', () => {
       rules: [{ id: 'read-demo', effect: 'allow', tools: ['demo__read_file'] }],
     });
 
-    expect(engine.evaluate({ exposedName: 'demo__read_file', serverName: 'demo' })).toEqual({
+    expect(engine.evaluate({ exposedName: 'demo__read_file' })).toEqual({
       action: 'allow',
       ruleId: 'read-demo',
     });
@@ -38,7 +38,7 @@ describe('PolicyEngine', () => {
       ],
     });
 
-    const verdict = engine.evaluate({ exposedName: 'demo__read_secret', serverName: 'demo' });
+    const verdict = engine.evaluate({ exposedName: 'demo__read_secret' });
 
     expect(verdict.action).toBe('block');
     expect(verdict).toMatchObject({ action: 'block', ruleId: 'no-secrets' });
@@ -50,15 +50,13 @@ describe('PolicyEngine', () => {
       rules: [{ id: 'demo-allow-all', effect: 'allow', match: '^demo__' }],
     });
 
-    expect(engine.evaluate({ exposedName: 'demo__anything_else', serverName: 'demo' }).action).toBe(
-      'allow',
-    );
+    expect(engine.evaluate({ exposedName: 'demo__anything_else' }).action).toBe('allow');
   });
 
   it('falls back to defaultAction when nothing matches: block posture', () => {
     const engine = new PolicyEngine({ defaultAction: 'block', rules: [] });
 
-    expect(engine.evaluate({ exposedName: 'other__tool', serverName: 'other' })).toEqual({
+    expect(engine.evaluate({ exposedName: 'other__tool' })).toEqual({
       action: 'block',
       ruleId: 'default',
       reason: 'No matching policy (defaultAction: block)',
@@ -71,7 +69,7 @@ describe('PolicyEngine', () => {
       rules: [{ id: 'unrelated', effect: 'block', tools: ['x__y'] }],
     });
 
-    expect(engine.evaluate({ exposedName: 'other__tool', serverName: 'other' })).toEqual({
+    expect(engine.evaluate({ exposedName: 'other__tool' })).toEqual({
       action: 'allow',
     });
   });
