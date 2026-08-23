@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const downstreamSchema = z.object({
+const stdioDownstreamSchema = z.object({
   name: z.string().min(1),
   transport: z.literal('stdio'),
   command: z.string().min(1),
@@ -8,6 +8,18 @@ const downstreamSchema = z.object({
   env: z.record(z.string()).optional(),
   cwd: z.string().optional(),
 });
+
+const httpDownstreamSchema = z.object({
+  name: z.string().min(1),
+  transport: z.literal('http'),
+  url: z.string().url(),
+  headers: z.record(z.string()).optional(),
+});
+
+const downstreamSchema = z.discriminatedUnion('transport', [
+  stdioDownstreamSchema,
+  httpDownstreamSchema,
+]);
 
 const policyRuleSchema = z
   .object({

@@ -61,7 +61,14 @@ downstream:
     command: node
     args:
       - ./fixtures/demo-server.mjs
+  - name: demo-http
+    transport: http
+    url: http://127.0.0.1:8907/mcp
 ```
+
+Downstream servers speak stdio (child process) or streamable HTTP (remote
+URL, optional `headers`). Run the HTTP demo server with
+`node fixtures/demo-http-server.mjs`.
 
 ### Policies
 
