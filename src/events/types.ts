@@ -3,6 +3,7 @@ export type ProxyEventKind =
   | 'server.disconnected'
   | 'server.error'
   | 'request.started'
+  | 'request.held'
   | 'request.succeeded'
   | 'request.failed'
   | 'request.blocked';
