@@ -7,10 +7,14 @@ storage:
 
 policies:
   defaultAction: allow
+  confirmTimeoutMs: 120000
   rules:
     - id: no-writes
       effect: block
-      match: '__write$'
+      match: 'write'
+    - id: confirm-publish
+      effect: confirm
+      match: 'publish'
 
 downstream:
   - name: demo
