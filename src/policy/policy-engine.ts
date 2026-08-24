@@ -7,14 +7,16 @@ export interface ToolCallRef {
 }
 
 export type Verdict =
-  { action: 'allow'; ruleId?: string } | { action: 'block'; ruleId: string; reason: string };
+  | { action: 'allow'; ruleId?: string }
+  | { action: 'confirm'; ruleId: string; reason: string }
+  | { action: 'block'; ruleId: string; reason: string };
 
 const DEFAULT_BLOCK_RULE_ID = 'default';
 
 export class PolicyEngine {
   private readonly rules: { rule: PolicyConfig['rules'][number]; regex?: RegExp }[];
 
-  constructor(private readonly config: PolicyConfig) {
+  constructor(private readonly config: Omit<PolicyConfig, 'confirmTimeoutMs'>) {
     this.rules = config.rules.map((rule) => ({
       rule,
       ...(rule.match !== undefined ? { regex: new RegExp(rule.match) } : {}),
@@ -29,6 +31,14 @@ export class PolicyEngine {
         action: 'block',
         ruleId: blocked.rule.id,
         reason: `Matched block rule "${blocked.rule.id}"`,
+      };
+    }
+    const confirmed = matches.find(({ rule }) => rule.effect === 'confirm');
+    if (confirmed) {
+      return {
+        action: 'confirm',
+        ruleId: confirmed.rule.id,
+        reason: `Matched confirm rule "${confirmed.rule.id}"`,
       };
     }
     const allowed = matches.find(({ rule }) => rule.effect === 'allow');

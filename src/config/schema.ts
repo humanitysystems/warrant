@@ -24,7 +24,7 @@ const downstreamSchema = z.discriminatedUnion('transport', [
 const policyRuleSchema = z
   .object({
     id: z.string().min(1),
-    effect: z.enum(['allow', 'block']),
+    effect: z.enum(['allow', 'block', 'confirm']),
     tools: z.array(z.string().min(1)).optional(),
     match: z
       .string()
@@ -54,6 +54,7 @@ export const warrantConfigSchema = z.object({
     .object({
       defaultAction: z.enum(['allow', 'block']).default('allow'),
       rules: z.array(policyRuleSchema).default([]),
+      confirmTimeoutMs: z.number().int().positive().default(60_000),
     })
     .default({}),
   storage: z

@@ -24,6 +24,15 @@ export function createAdminApp(proxy: McpProxy, production = false): Hono {
   });
   app.get('/api/servers', (c) => c.json({ servers: proxy.registry.serversList() }));
   app.get('/api/tools', (c) => c.json({ tools: proxy.registry.toolsList() }));
+  app.get('/api/holds', (c) => c.json({ holds: proxy.listHolds() }));
+  app.post('/api/holds/:requestId/:decision', (c) => {
+    const decision = c.req.param('decision');
+    if (decision !== 'approve' && decision !== 'deny') {
+      return c.json({ error: 'decision must be approve or deny' }, 400);
+    }
+    const resolved = proxy.resolveHold(c.req.param('requestId'), decision === 'approve');
+    return resolved ? c.json({ ok: true }) : c.json({ error: 'unknown hold' }, 404);
+  });
   app.get('/api/events', (c) => {
     const limitParam = c.req.query('limit');
     const beforeParam = c.req.query('before');

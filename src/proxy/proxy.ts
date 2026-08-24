@@ -22,6 +22,18 @@ export type DownstreamConnector = (
   config: WarrantConfig['downstream'][number],
 ) => Promise<DownstreamConnection>;
 
+export type HoldSnapshot = {
+  requestId: string;
+  name: string;
+  serverName: string;
+  ruleId: string;
+  heldAt: string;
+};
+
+type PendingHold = {
+  settle: (outcome: { approved: boolean; source: 'operator' | 'timeout' }) => void;
+};
+
 export class McpProxy {
   readonly registry = new Registry();
   readonly events: EventStore;
@@ -29,6 +41,7 @@ export class McpProxy {
   private readonly policyEngine: PolicyEngine;
   private readonly server: Server;
   private readonly downstream = new Map<string, DownstreamState>();
+  private readonly holds = new Map<string, HoldSnapshot & { settle: PendingHold['settle'] }>();
   private connected = false;
 
   constructor(
@@ -60,7 +73,50 @@ export class McpProxy {
     if (this.connected) await this.server.close();
     for (const state of this.downstream.values()) await state.client.close();
     this.downstream.clear();
+    this.holds.clear();
     this.connected = false;
+  }
+
+  listHolds(): HoldSnapshot[] {
+    return [...this.holds.values()].map((hold) => ({
+      requestId: hold.requestId,
+      name: hold.name,
+      serverName: hold.serverName,
+      ruleId: hold.ruleId,
+      heldAt: hold.heldAt,
+    }));
+  }
+
+  resolveHold(requestId: string, approved: boolean): boolean {
+    const hold = this.holds.get(requestId);
+    if (!hold) return false;
+    hold.settle({ approved, source: 'operator' });
+    return true;
+  }
+
+  private awaitConfirmation(requestId: string, name: string, serverName: string, ruleId: string) {
+    const timeoutMs = this.config.policies.confirmTimeoutMs;
+    return new Promise<{ approved: boolean; source: 'operator' | 'timeout' }>((resolve) => {
+      const timer = setTimeout(() => {
+        const held = this.holds.get(requestId);
+        if (held?.settle) {
+          this.holds.delete(requestId);
+          resolve({ approved: false, source: 'timeout' });
+        }
+      }, timeoutMs);
+      this.holds.set(requestId, {
+        requestId,
+        name,
+        serverName,
+        ruleId,
+        heldAt: new Date().toISOString(),
+        settle: (outcome) => {
+          clearTimeout(timer);
+          this.holds.delete(requestId);
+          resolve(outcome);
+        },
+      });
+    });
   }
 
   private async connectServer(
@@ -131,6 +187,31 @@ export class McpProxy {
       if (!connection) throw new Error(`Downstream server is unavailable: ${tool.serverName}`);
 
       const verdict = this.policyEngine.evaluate({ exposedName: tool.exposedName });
+      if (verdict.action === 'confirm') {
+        emit('request.held', { ruleId: verdict.ruleId });
+        const outcome = await this.awaitConfirmation(
+          requestId,
+          request.params.name,
+          tool.serverName,
+          verdict.ruleId,
+        );
+        if (!outcome.approved) {
+          const message =
+            outcome.source === 'operator' ? 'Denied by operator' : 'Confirmation timeout';
+          const code =
+            outcome.source === 'operator' ? 'denied_by_operator' : 'confirmation_timeout';
+          emit('request.blocked', {
+            ruleId: verdict.ruleId,
+            error: { message, code },
+          });
+          return {
+            content: [
+              { type: 'text', text: `Blocked by Warrant rule '${verdict.ruleId}': ${message}` },
+            ],
+            isError: true,
+          };
+        }
+      }
       if (verdict.action === 'block') {
         emit('request.blocked', {
           ruleId: verdict.ruleId,

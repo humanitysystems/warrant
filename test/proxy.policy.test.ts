@@ -4,10 +4,10 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { describe, expect, it } from 'vitest';
 import { McpProxy } from '@/proxy/proxy';
-import type { WarrantConfig } from '@/config/schema';
+import type { WarrantConfigInput } from '@/config/schema';
 
 function buildProxy(
-  policies: WarrantConfig['policies'],
+  policies: WarrantConfigInput['policies'],
   handleCall: () => void,
 ): { proxy: McpProxy; connections: Array<{ client: Client; server: Server }> } {
   const connections: Array<{ client: Client; server: Server }> = [];

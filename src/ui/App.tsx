@@ -22,6 +22,14 @@ type Event = {
   error?: { message: string };
 };
 
+type Hold = {
+  requestId: string;
+  name: string;
+  serverName: string;
+  ruleId: string;
+  heldAt: string;
+};
+
 type Status = {
   servers: { total: number; connected: number };
   tools: number;
@@ -33,33 +41,54 @@ export function App() {
   const [servers, setServers] = useState<Server[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [holds, setHolds] = useState<Hold[]>([]);
   const [filter, setFilter] = useState('');
+
+  const refreshHolds = async () => {
+    const response = await fetch('/api/holds');
+    const data = (await response.json()) as { holds: Hold[] };
+    setHolds(data.holds);
+  };
+
+  const decideHold = async (requestId: string, decision: 'approve' | 'deny') => {
+    await fetch(`/api/holds/${requestId}/${decision}`, { method: 'POST' });
+    void refreshHolds();
+  };
 
   useEffect(() => {
     const load = async () => {
-      const [statusResponse, serversResponse, toolsResponse, eventsResponse] = await Promise.all([
-        fetch('/api/status'),
-        fetch('/api/servers'),
-        fetch('/api/tools'),
-        fetch('/api/events'),
-      ]);
+      const [statusResponse, serversResponse, toolsResponse, eventsResponse, holdsResponse] =
+        await Promise.all([
+          fetch('/api/status'),
+          fetch('/api/servers'),
+          fetch('/api/tools'),
+          fetch('/api/events'),
+          fetch('/api/holds'),
+        ]);
       setStatus((await statusResponse.json()) as Status);
       const serverData = (await serversResponse.json()) as { servers: Server[] };
       const toolData = (await toolsResponse.json()) as { tools: Tool[] };
       const eventData = (await eventsResponse.json()) as { events: Event[] };
+      const holdData = (await holdsResponse.json()) as { holds: Hold[] };
       setServers(serverData.servers);
       setTools(toolData.tools);
       setEvents(eventData.events);
+      setHolds(holdData.holds);
     };
     void load();
 
+    const pollHolds = setInterval(() => void refreshHolds(), 1500);
     const source = new EventSource('/api/events/stream');
     source.onmessage = (message) => {
       const event = JSON.parse(message.data) as Event;
+      if (event.kind === 'request.held') void refreshHolds();
       setEvents((current) => [event, ...current].slice(0, 500));
     };
     source.onerror = () => source.close();
-    return () => source.close();
+    return () => {
+      clearInterval(pollHolds);
+      source.close();
+    };
   }, []);
 
   const visibleEvents = events.filter((event) => {
@@ -88,6 +117,28 @@ export function App() {
         <Metric label="Client transport" value={status?.clientTransport ?? '...'} />
       </section>
       <section className="columns">
+        <Panel title="Pending confirmations">
+          <div className="hold-list">
+            {holds.map((hold) => (
+              <article className="server" key={hold.requestId}>
+                <div>
+                  <strong>
+                    {hold.serverName}__{hold.name}
+                  </strong>
+                  <span className="badge connecting">held</span>
+                </div>
+                <small>rule: {hold.ruleId}</small>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button onClick={() => void decideHold(hold.requestId, 'approve')}>
+                    Approve
+                  </button>
+                  <button onClick={() => void decideHold(hold.requestId, 'deny')}>Deny</button>
+                </div>
+              </article>
+            ))}
+            {!holds.length && <p className="muted">No calls waiting for confirmation.</p>}
+          </div>
+        </Panel>
         <Panel title="Downstream servers">
           <div className="server-list">
             {servers.map((server) => (
