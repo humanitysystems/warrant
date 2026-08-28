@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warrant POC Demo</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #facc15;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vh 8vw;
+    height: 100vh;
+    max-height: 100vh;
+    animation: fadeIn 0.25s ease;
+  }
+  .slide.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  h1 { font-size: 3.2rem; font-weight: 800; color: #fff; margin-bottom: 0.3rem; }
+  h2 { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 1.2rem; }
+  h3 { font-size: 1.3rem; font-weight: 600; color: var(--muted); margin-bottom: 1.5rem; }
+  h4 { font-size: 1.1rem; font-weight: 600; color: var(--muted); margin-bottom: 0.8rem; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 0.5rem 0 1rem;
+    white-space: pre;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    color: var(--text);
+  }
+  pre .comment { color: var(--muted); }
+  pre .keyword { color: var(--accent); }
+  pre .value { color: var(--green); }
+  pre .blocked { color: var(--red); }
+  pre .held { color: var(--yellow); }
+
+  code {
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    color: var(--accent);
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+    width: 100%;
+    max-width: 800px;
+  }
+  th, td {
+    padding: 0.7rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #334155;
+    font-size: 0.95rem;
+  }
+  th { color: var(--accent); font-weight: 600; }
+  td:nth-child(4) { font-weight: 600; }
+
+  ul { margin: 0.5rem 0; padding-left: 1.5rem; }
+  li { margin: 0.4rem 0; line-height: 1.5; }
+
+  .nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 2rem;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid #1e293b;
+    z-index: 200;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .nav-bar button {
+    background: var(--card);
+    border: 1px solid #334155;
+    color: var(--text);
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .nav-bar button:hover { border-color: var(--accent); }
+  .nav-bar button:disabled { opacity: 0.3; cursor: default; }
+  .progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+    z-index: 300;
+  }
+
+  .beat-badge {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-right: 0.5rem;
+  }
+  .beat-allow { background: rgba(74,222,128,0.15); color: var(--green); }
+  .beat-block { background: rgba(248,113,113,0.15); color: var(--red); }
+  .beat-hold  { background: rgba(250,204,21,0.15); color: var(--yellow); }
+
+  .diagram { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.4; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<!-- SLIDE 1: Title -->
+<div class="slide active" data-slide="1">
+  <h1>Warrant</h1>
+  <h3>A transparent MCP proxy with policy enforcement<br>and human-in-the-loop controls</h3>
+  <p style="color:var(--muted);margin-top:2rem;font-size:0.95rem;">
+    POC Demo &mdash; Four beats, one proxy, all on loopback.
+  </p>
+</div>
+
+<!-- SLIDE 2: The Problem -->
+<div class="slide" data-slide="2">
+  <h2>The Problem</h2>
+  <pre class="diagram">Claude Desktop / OpenCode
+        |
+        v
+   +---------+
+   |   MCP   | <span style="color:var(--red)">&lt;--- No visibility, no guardrails</span>
+   | Servers |
+   +---------+</pre>
+</div>
+
+<!-- SLIDE 3: Architecture -->
+<div class="slide" data-slide="3">
+  <h2>The Architecture</h2>
+  <pre class="diagram">            AI Agent (Claude / OpenCode)
+                      |
+                      v
+          +-----------+-----------+
+          |       Warrant         |
+          |     (MCP proxy)       |
+          |                       |
+          |  warrant.yaml         |
+          |  (policies live here) |
+          +-----------+-----------+
+                      |
+          +-----------+-----------+
+          |                       |
+          v                       v
+  +---------------+       +----------------+
+  | stdio server  |       | HTTP :8907      |
+  +---------------+       +----------------+
+
+          +-----------------------+
+          |   Admin UI  :8787     |
+          +-----------------------+</pre>
+</div>
+<!-- SLIDE 4: The Policy -->
+<div class="slide" data-slide="4">
+  <h2>The Policy</h2>
+  <pre><span class="keyword">policies:</span>
+  <span class="keyword">defaultAction:</span> <span class="value">allow</span>
+  <span class="keyword">rules:</span>
+    - <span class="keyword">id:</span> <span class="blocked">no-writes</span>
+      <span class="keyword">effect:</span> <span class="blocked">block</span>
+      <span class="keyword">match:</span> <span class="blocked">'write'</span>
+    - <span class="keyword">id:</span> <span class="held">confirm-publish</span>
+      <span class="keyword">effect:</span> <span class="held">confirm</span>
+      <span class="keyword">match:</span> <span class="held">'publish'</span></pre>
+  <p style="margin-top:1rem;color:var(--muted);font-size:0.95rem;">
+    Deny-overrides: a <span style="color:var(--red)">block</span> always wins over an <span style="color:var(--green)">allow</span>.
+  </p>
+</div>
+
+<!-- SLIDE 5: Setup -->
+<div class="slide" data-slide="5">
+  <h2>Setup Commands</h2>
+  <pre><span class="comment"># Terminal 1: build and start Warrant</span>
+cd repos/warrant
+npm install && npm run build
+rm -f warrant.db              <span class="comment"># fresh audit trail</span>
+node dist/server.js           <span class="comment"># starts on :8787</span>
+
+<span class="comment"># Terminal 2: start the HTTP fixture</span>
+node fixtures/demo-http-server.mjs &amp;   <span class="comment"># listens on :8907</span></pre>
+</div>
+
+<!-- SLIDE 6: Run the Demo -->
+<div class="slide" data-slide="6">
+  <h2>Run the Demo</h2>
+  <pre><span class="comment"># Terminal 3: run the demo client</span>
+node scripts/demo-client.mjs</pre>
+</div>
+
+<!-- SLIDE 7: Beat 1 -->
+<div class="slide" data-slide="7">
+  <h2><span class="beat-badge beat-allow">BEAT 1</span> Transparent Allow (stdio)</h2>
+  <pre><span class="value">=== 1. ALLOWED (stdio read) ===</span>
+Tool call:    demo__read_file
+Verdict:      <span class="value">allowed</span> &mdash; forwarded to downstream stdio server
+
+Expected output:
+verdict: allowed &rarr; read notes.txt: (demo) ok</pre>
+</div>
+
+<!-- SLIDE 8: Beat 2 -->
+<div class="slide" data-slide="8">
+  <h2><span class="beat-badge beat-block">BEAT 2</span> Policy Block</h2>
+  <pre><span class="blocked">=== 2. BLOCKED (stdio write) ===</span>
+Tool call:    demo__write_file
+Verdict:      <span class="blocked">blocked</span> &mdash; matched rule no-writes
+
+Expected output:
+verdict: blocked &rarr; Blocked by Warrant rule 'no-writes'</pre>
+</div>
+
+<!-- SLIDE 9: Beat 3 -->
+<div class="slide" data-slide="9">
+  <h2><span class="beat-badge beat-allow">BEAT 3</span> Transparent Allow (HTTP)</h2>
+  <pre><span class="value">=== 3. ALLOWED (streamable HTTP read) ===</span>
+Tool call:    demo-http__remote_read
+Verdict:      <span class="value">allowed</span> &mdash; forwarded to HTTP server on :8907
+
+Expected output:
+verdict: allowed &rarr; http: upstream result from :8907</pre>
+</div>
+
+<!-- SLIDE 10: Beat 4 -->
+<div class="slide" data-slide="10">
+  <h2><span class="beat-badge beat-hold">BEAT 4</span> Human-in-the-Loop Hold</h2>
+  <pre><span class="held">=== 4. CONFIRMED (http publish held, then approved) ===</span>
+Tool call:    demo-http__remote_publish
+Verdict:      <span class="held">held</span> by rule confirm-publish
+Operator approves via admin API &rarr; call resumes
+
+Expected output:
+held: rule=confirm-publish tool=demo-http__remote_publish
+operator approve: 200
+verdict: confirmed-after-approval &rarr; http: upstream result from :8907</pre>
+</div>
+
+<!-- SLIDE 11: Admin Console -->
+<div class="slide" data-slide="11">
+  <h2>Live: The Admin Console</h2>
+  <pre>http://127.0.0.1:8787</pre>
+  <ul style="margin-top:1rem;">
+    <li>Connected servers (stdio + HTTP downstreams)</li>
+    <li>Mirrored tools (4 tools, prefixed by server name)</li>
+    <li>Pending confirmations (beat 4 hold)</li>
+    <li>Live event stream</li>
+  </ul>
+</div>
+
+<!-- SLIDE 12: Audit Trail -->
+<div class="slide" data-slide="12">
+  <h2>Audit Trail</h2>
+  <pre><span class="value">=== AUDIT TRAIL (newest first) ===</span>
+ request.succeeded    demo-http__remote_publish
+ request.<span class="held">held</span>         demo-http__remote_publish    <span class="held">[rule:confirm-publish]</span>
+ request.started      demo-http__remote_publish
+ request.succeeded    demo-http__remote_read
+ request.started      demo-http__remote_read
+ request.<span class="blocked">blocked</span>      demo__write_file             <span class="blocked">[rule:no-writes]</span>
+ request.started      demo__write_file
+ request.succeeded    demo__read_file
+ request.started      demo__read_file
+ server.connected
+ server.connected</pre>
+</div>
+
+<!-- SLIDE 13: Summary -->
+<div class="slide" data-slide="13">
+  <h2>Summary</h2>
+  <table>
+    <thead>
+      <tr><th>Beat</th><th>Tool</th><th>Policy</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td><td>demo__read_file</td><td>default allow</td>
+        <td style="color:var(--green)">&#10003; Passed through</td>
+      </tr>
+      <tr>
+        <td>2</td><td>demo__write_file</td><td>no-writes</td>
+        <td style="color:var(--red)">&#10007; Blocked</td>
+      </tr>
+      <tr>
+        <td>3</td><td>demo-http__remote_read</td><td>default allow</td>
+        <td style="color:var(--green)">&#10003; Passed through</td>
+      </tr>
+      <tr>
+        <td>4</td><td>demo-http__remote_publish</td><td>confirm-publish</td>
+        <td style="color:var(--yellow)">&#128274; Held &rarr; Approved</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SLIDE 14: What's Next -->
+<div class="slide" data-slide="14">
+  <h2>What's Next</h2>
+  <ul style="font-size:1.1rem;line-height:2;">
+    <li>Cedar-based policy evaluation</li>
+    <li>Intent capture and signing</li>
+    <li>Multi-user admin console</li>
+    <li>Real downstream server integration</li>
+    <li>Policy editing in the UI</li>
+  </ul>
+</div>
+
+<!-- SLIDE 15: Quick Reference -->
+<div class="slide" data-slide="15">
+  <h2>Quick Reference</h2>
+  <pre><span class="comment"># Full demo from scratch</span>
+cd repos/warrant
+npm install && npm run build
+rm -f warrant.db
+node fixtures/demo-http-server.mjs &amp;
+node dist/server.js                    <span class="comment"># Terminal 1</span>
+node scripts/demo-client.mjs           <span class="comment"># Terminal 2</span>
+
+<span class="comment"># Admin console</span>
+open http://127.0.0.1:8787
+
+<span class="comment"># Manual beat 4 (no auto-approve):</span>
+<span class="comment"># Comment out lines 46-57 in scripts/demo-client.mjs</span>
+<span class="comment"># Then approve via the browser console</span></pre>
+</div>
+
+<!-- Navigation Bar -->
+<div class="nav-bar">
+  <button id="prevBtn" onclick="navigate(-1)">&larr; Prev</button>
+  <span id="slideCounter">1 / 15</span>
+  <button id="nextBtn" onclick="navigate(1)">Next &rarr;</button>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = 0;
+
+function showSlide(idx) {
+  slides.forEach(s => s.classList.remove('active'));
+  slides[idx].classList.add('active');
+  document.getElementById('slideCounter').textContent = (idx + 1) + ' / ' + total;
+  document.getElementById('progress').style.width = ((idx + 1) / total * 100) + '%';
+  document.getElementById('prevBtn').disabled = idx === 0;
+  document.getElementById('nextBtn').disabled = idx === total - 1;
+}
+
+function navigate(dir) {
+  const next = current + dir;
+  if (next >= 0 && next < total) {
+    current = next;
+    showSlide(current);
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  if (e.key === 'Home') { current = 0; showSlide(current); }
+  if (e.key === 'End') { current = total - 1; showSlide(current); }
+});
+
+showSlide(0);
+</script>
+</body>
+</html>
