@@ -21,6 +21,8 @@ const downstreamSchema = z.discriminatedUnion('transport', [
   httpDownstreamSchema,
 ]);
 
+export { downstreamSchema };
+
 const policyRuleSchema = z
   .object({
     id: z.string().min(1),

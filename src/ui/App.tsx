@@ -43,6 +43,9 @@ export function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [holds, setHolds] = useState<Hold[]>([]);
   const [filter, setFilter] = useState('');
+  const [mutationHint, setMutationHint] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
 
   const refreshHolds = async () => {
     const response = await fetch('/api/holds');
@@ -50,8 +53,61 @@ export function App() {
     setHolds(data.holds);
   };
 
+  const refreshManagement = async () => {
+    const [statusResponse, serversResponse, toolsResponse] = await Promise.all([
+      fetch('/api/status'),
+      fetch('/api/servers'),
+      fetch('/api/tools'),
+    ]);
+    setStatus((await statusResponse.json()) as Status);
+    const serverData = (await serversResponse.json()) as { servers: Server[] };
+    const toolData = (await toolsResponse.json()) as { tools: Tool[] };
+    setServers(serverData.servers);
+    setTools(toolData.tools);
+  };
+
   const decideHold = async (requestId: string, decision: 'approve' | 'deny') => {
     await fetch(`/api/holds/${requestId}/${decision}`, { method: 'POST' });
+    void refreshHolds();
+  };
+
+  const reloadServer = async (name: string) => {
+    await fetch(`/api/servers/${encodeURIComponent(name)}/reload`, { method: 'POST' });
+    setMutationError(null);
+    setMutationHint(
+      `Reloaded '${name}'. A connected MCP client may need its connection refreshed to see tool changes.`,
+    );
+    void refreshManagement();
+    void refreshHolds();
+  };
+
+  const removeServer = async (name: string) => {
+    if (!window.confirm(`Remove downstream server '${name}'? This is destructive.`)) return;
+    await fetch(`/api/servers/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    setMutationError(null);
+    setMutationHint(
+      `Removed '${name}'. A connected MCP client may need its connection refreshed.`,
+    );
+    void refreshManagement();
+    void refreshHolds();
+  };
+
+  const addServer = async (config: Record<string, unknown>) => {
+    const response = await fetch('/api/servers', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const body = (await response.json()) as { servers?: Server[]; error?: string; issues?: unknown };
+    if (!response.ok) {
+      setMutationError(body.error ?? 'Failed to add server.');
+      return;
+    }
+    setMutationError(null);
+    setMutationHint(
+      `Added '${config.name}'. A connected MCP client may need its connection refreshed to see new tools.`,
+    );
+    setServers(body.servers ?? []);
     void refreshHolds();
   };
 
@@ -150,11 +206,34 @@ export function App() {
                 <small>
                   {server.transport} · {server.tools.length} tools
                 </small>
+                <div className="server-actions">
+                  <button onClick={() => void reloadServer(server.name)}>Reload</button>
+                  <button
+                    className="danger"
+                    onClick={() => void removeServer(server.name)}
+                  >
+                    Remove
+                  </button>
+                </div>
                 {server.lastError && <p className="error">{server.lastError}</p>}
               </article>
             ))}
             {!servers.length && <p className="muted">No downstream servers configured.</p>}
+            {mutationHint && <p className="muted hint">{mutationHint}</p>}
+            {mutationError && <p className="error">{mutationError}</p>}
+            {formOpen && (
+              <AddServerForm
+                onAdd={addServer}
+                onCancel={() => setFormOpen(false)}
+                onError={setMutationError}
+              />
+            )}
           </div>
+          {!formOpen && (
+            <button className="add" onClick={() => setFormOpen(true)}>
+              + Add server
+            </button>
+          )}
         </Panel>
         <Panel title="Tool registry">
           <div className="tool-list">
@@ -231,5 +310,113 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       </div>
       {children}
     </section>
+  );
+}
+
+function AddServerForm({
+  onAdd,
+  onCancel,
+  onError,
+}: {
+  onAdd: (config: Record<string, unknown>) => void;
+  onCancel: () => void;
+  onError: (message: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [transport, setTransport] = useState<'stdio' | 'http'>('stdio');
+  const [command, setCommand] = useState('');
+  const [args, setArgs] = useState('');
+  const [url, setUrl] = useState('');
+
+  const submit = () => {
+    onError('');
+    if (!name.trim()) {
+      onError('Name is required.');
+      return;
+    }
+    if (transport === 'stdio') {
+      if (!command.trim()) {
+        onError('Command is required for stdio servers.');
+        return;
+      }
+      onAdd({
+        name: name.trim(),
+        transport: 'stdio',
+        command: command.trim(),
+        args: args
+          .split(',')
+          .map((arg) => arg.trim())
+          .filter(Boolean),
+      });
+    } else {
+      if (!url.trim()) {
+        onError('URL is required for http servers.');
+        return;
+      }
+      onAdd({ name: name.trim(), transport: 'http', url: url.trim() });
+    }
+    setName('');
+    setCommand('');
+    setArgs('');
+    setUrl('');
+    onCancel();
+  };
+
+  return (
+    <article className="server add-form">
+      <div className="add-form-grid">
+        <label>
+          Name
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="server-name"
+          />
+        </label>
+        <label>
+          Transport
+          <select
+            value={transport}
+            onChange={(event) => setTransport(event.target.value as 'stdio' | 'http')}
+          >
+            <option value="stdio">stdio</option>
+            <option value="http">http</option>
+          </select>
+        </label>
+        {transport === 'stdio' ? (
+          <>
+            <label>
+              Command
+              <input
+                value={command}
+                onChange={(event) => setCommand(event.target.value)}
+                placeholder="node"
+              />
+            </label>
+            <label>
+              Args (comma-separated)
+              <input
+                value={args}
+                onChange={(event) => setArgs(event.target.value)}
+                placeholder="./server.mjs"
+              />
+            </label>
+          </>
+        ) : (
+          <label>
+            URL
+            <input
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="http://127.0.0.1:8907/mcp"
+            />
+          </label>
+        )}
+      </div>
+      <div className="add-form-actions">
+        <button onClick={() => void submit()}>Add</button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    </article>
   );
 }

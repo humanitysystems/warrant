@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Local transparent MCP proxy with an admin console",
+  "bin": {
+    "warrant": "dist/cli/index.js"
+  },
   "engines": {
     "node": ">=22.12.0"
   },

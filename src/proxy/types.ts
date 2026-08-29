@@ -10,7 +10,7 @@ export type ServerStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export type ServerSnapshot = {
   name: string;
-  transport: 'stdio';
+  transport: 'stdio' | 'http';
   status: ServerStatus;
   tools: RegisteredTool[];
   connectedAt?: string;

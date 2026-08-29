@@ -3,9 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { downstreamSchema } from '@/config/schema';
 import type { McpProxy } from '@/proxy/proxy';
 
-export function createAdminApp(proxy: McpProxy, production = false): Hono {
+type AdminOptions = {
+  save?: () => void | Promise<void>;
+};
+
+export function createAdminApp(proxy: McpProxy, production = false, options: AdminOptions = {}): Hono {
   const app = new Hono();
 
   app.get('/health', (c) => c.json({ ok: true }));
@@ -32,6 +37,39 @@ export function createAdminApp(proxy: McpProxy, production = false): Hono {
     }
     const resolved = proxy.resolveHold(c.req.param('requestId'), decision === 'approve');
     return resolved ? c.json({ ok: true }) : c.json({ error: 'unknown hold' }, 404);
+  });
+  app.post('/api/servers', async (c) => {
+    const parsed = downstreamSchema.safeParse(await c.req.json().catch(() => undefined));
+    if (!parsed.success) {
+      return c.json({ error: 'invalid downstream server config', issues: parsed.error.issues }, 400);
+    }
+    try {
+      await proxy.addServer(parsed.data);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
+    await options.save?.();
+    return c.json({ servers: proxy.registry.serversList() });
+  });
+  app.post('/api/servers/:name/reload', async (c) => {
+    const name = c.req.param('name');
+    try {
+      await proxy.reloadServer(name);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 404);
+    }
+    await options.save?.();
+    return c.json({ servers: proxy.registry.serversList() });
+  });
+  app.delete('/api/servers/:name', async (c) => {
+    const name = c.req.param('name');
+    try {
+      await proxy.removeServer(name);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 404);
+    }
+    await options.save?.();
+    return c.json({ servers: proxy.registry.serversList() });
   });
   app.get('/api/events', (c) => {
     const limitParam = c.req.query('limit');

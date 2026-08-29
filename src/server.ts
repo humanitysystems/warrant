@@ -1,16 +1,19 @@
 import { serve } from '@hono/node-server';
 import { createAdminApp } from '@/admin/app';
-import { loadConfig } from '@/config/loader';
+import { loadConfig, writeConfig } from '@/config/loader';
 import { EventStore } from '@/events/event-store';
 import { McpProxy } from '@/proxy/proxy';
 
 async function main(): Promise<void> {
-  const config = await loadConfig(process.env.WARRANT_CONFIG ?? 'warrant.yaml');
+  const configPath = process.env.WARRANT_CONFIG ?? 'warrant.yaml';
+  const config = await loadConfig(configPath);
   const events = new EventStore({ path: config.storage?.path ?? 'warrant.db' });
   const proxy = new McpProxy(config, events);
   const production = process.env.NODE_ENV !== 'development';
   const admin = serve({
-    fetch: createAdminApp(proxy, production).fetch,
+    fetch: createAdminApp(proxy, production, {
+      save: () => writeConfig(configPath, proxy.currentConfig()),
+    }).fetch,
     hostname: config.server.host,
     port: config.server.adminPort,
   });

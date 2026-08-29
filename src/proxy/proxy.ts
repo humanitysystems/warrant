@@ -8,7 +8,7 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { WarrantConfig, WarrantConfigInput } from '@/config/schema';
+import type { WarrantConfig, WarrantConfigInput, DownstreamConfig } from '@/config/schema';
 import { warrantConfigSchema } from '@/config/schema';
 import { EventStore } from '@/events/event-store';
 import type { ProxyEventKind } from '@/events/types';
@@ -55,7 +55,7 @@ export class McpProxy {
     this.policyEngine = new PolicyEngine(config.policies);
     this.server = new Server(
       { name: 'warrant-proxy', version: '0.1.0' },
-      { capabilities: { tools: { listChanged: false } } },
+      { capabilities: { tools: { listChanged: true } } },
     );
     this.registerHandlers();
   }
@@ -75,6 +75,38 @@ export class McpProxy {
     this.downstream.clear();
     this.holds.clear();
     this.connected = false;
+  }
+
+  currentConfig(): WarrantConfig {
+    return structuredClone(this.config);
+  }
+
+  async addServer(config: DownstreamConfig): Promise<void> {
+    if (this.config.downstream.some((c) => c.name === config.name)) {
+      throw new Error(`Duplicate downstream server: ${config.name}`);
+    }
+    await this.connectServer(config.name, config);
+    this.config.downstream.push(config);
+    await this.notifyToolsChanged();
+  }
+
+  async removeServer(name: string): Promise<void> {
+    if (!this.config.downstream.some((c) => c.name === name)) {
+      throw new Error(`Unknown downstream server: ${name}`);
+    }
+    await this.disconnectServer(name);
+    this.config.downstream = this.config.downstream.filter((c) => c.name !== name);
+    await this.notifyToolsChanged();
+  }
+
+  async reloadServer(name: string): Promise<void> {
+    const config = this.config.downstream.find((c) => c.name === name);
+    if (!config) {
+      throw new Error(`Unknown downstream server: ${name}`);
+    }
+    await this.disconnectServer(name);
+    await this.connectServer(name, config);
+    await this.notifyToolsChanged();
   }
 
   listHolds(): HoldSnapshot[] {
@@ -123,7 +155,7 @@ export class McpProxy {
     name: string,
     config: WarrantConfig['downstream'][number],
   ): Promise<void> {
-    this.registry.register(name);
+    this.registry.register(name, config.transport);
     try {
       const connection = await this.connect(config);
       const state = { ...connection, name };
@@ -139,6 +171,21 @@ export class McpProxy {
       this.events.append({ kind: 'server.error', serverName: name, error: { message } });
       throw error;
     }
+  }
+
+  private async disconnectServer(name: string): Promise<void> {
+    const state = this.downstream.get(name);
+    if (state) {
+      await state.client.close();
+      this.downstream.delete(name);
+    }
+    this.registry.unregister(name);
+    this.events.append({ kind: 'server.disconnected', serverName: name });
+  }
+
+  private async notifyToolsChanged(): Promise<void> {
+    if (!this.connected) return;
+    await this.server.notification({ method: 'notifications/tools/list_changed' });
   }
 
   private registeredTool(serverName: string, tool: Tool): RegisteredTool {

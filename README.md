@@ -123,8 +123,55 @@ The local admin server exposes:
 - `GET /api/status`
 - `GET /api/servers`
 - `GET /api/tools`
+- `GET /api/holds`
+- `POST /api/holds/:requestId/:decision` (decision: `approve` | `deny`)
 - `GET /api/events`
 - `GET /api/events/stream` (SSE)
 
+Runtime server management (persists back to `warrant.yaml`):
+
+- `POST /api/servers` — add a downstream server (stdio or http). Body matches
+  the `downstream` shape: `{ name, transport: 'stdio', command, args?, env?, cwd? }`
+  or `{ name, transport: 'http', url, headers? }`. `400` invalid, `409` duplicate.
+- `POST /api/servers/:name/reload` — disconnect + reconnect (re-mirror tools).
+- `DELETE /api/servers/:name` — remove a downstream server.
+
 The server binds to loopback only. It is not intended for remote access or
 multi-user use.
+
+### Persistence caveat
+
+Management mutations persist back to `warrant.yaml`, but by re-serializing the
+whole document. This **drops comments and reformats** the file — a hand-written
+commented config will not survive a management operation byte-for-byte.
+
+### Escape hatch
+
+After a server is added, removed, or reloaded, Warrant emits
+`notifications/tools/list_changed`, but a connected MCP client (e.g. OpenCode)
+may not re-pull the new tool list automatically. If you need the new tools in
+the current session, refresh the MCP connection / restart the session, then
+verify with `GET /api/status` (`.tools`) and `GET /api/tools`.
+
+## CLI
+
+The `warrant` binary is a deterministic management interface that targets the
+live admin API when reachable, and otherwise falls back to the config file
+(with a "Restart warrant to apply" warning).
+
+```bash
+warrant status                 # gateway + proxy status
+warrant servers                # downstream servers (live, else from config)
+warrant tools                  # mirrored tools (live)
+warrant events [--limit N]     # audit trail (live)
+warrant add-server <name> --transport stdio|http [--command C] [--args a,b] [--url U] [--header k=v]
+warrant remove-server <name>   # alias: rm
+warrant reload <name>
+warrant approve <requestId>    # resolve a held call
+warrant deny <requestId>
+```
+
+`add` is an alias for `add-server`. Global flags: `--config <path>` (default
+`WARRANT_CONFIG` or `./warrant.yaml`) and `--admin-url <url>` (default
+`WARRANT_ADMIN_URL` or `http://127.0.0.1:8787`). See
+`skills/warrant/references/cli.md` and `references/api.md` for full detail.

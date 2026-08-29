@@ -5,9 +5,17 @@ type MutableServer = ServerSnapshot;
 export class Registry {
   private readonly servers = new Map<string, MutableServer>();
 
-  register(name: string): void {
+  register(name: string, transport: 'stdio' | 'http' = 'stdio'): void {
     if (this.servers.has(name)) throw new Error(`Duplicate downstream server: ${name}`);
-    this.servers.set(name, { name, transport: 'stdio', status: 'connecting', tools: [] });
+    this.servers.set(name, { name, transport, status: 'connecting', tools: [] });
+  }
+
+  has(name: string): boolean {
+    return this.servers.has(name);
+  }
+
+  unregister(name: string): boolean {
+    return this.servers.delete(name);
   }
 
   setStatus(name: string, status: ServerStatus, error?: string): void {

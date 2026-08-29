@@ -199,6 +199,71 @@ small,
 .event-detail {
   margin-left: auto;
 }
+button {
+  font: inherit;
+  font-size: 0.78rem;
+  color: #dbe2eb;
+  background: #1b2130;
+  border: 1px solid #303846;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+button:hover {
+  background: #232b3d;
+}
+button.danger {
+  color: #ff9292;
+  border-color: #54282e;
+  background: #2a161b;
+}
+button.danger:hover {
+  background: #3d1f26;
+}
+button.add {
+  margin-top: 12px;
+  width: 100%;
+}
+.server-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.hint {
+  color: #90a6c7;
+  font-size: 0.72rem;
+}
+.add-form {
+  border-style: dashed;
+}
+.add-form input,
+.add-form select {
+  font: inherit;
+  font-size: 0.78rem;
+  width: 100%;
+  color: #dbe2eb;
+  background: #0b0d11;
+  border: 1px solid #303846;
+  border-radius: 6px;
+  padding: 7px 9px;
+  outline: none;
+  margin-top: 4px;
+}
+.add-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.add-form label {
+  display: block;
+  font-size: 0.7rem;
+  color: #8e9bad;
+}
+.add-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
 @media (max-width: 760px) {
   main {
     width: min(100% - 28px, 600px);
