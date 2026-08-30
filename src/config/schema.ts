@@ -1,7 +1,16 @@
 import { z } from 'zod';
 
+export const RESERVED_SERVER_NAME = 'warrant';
+
+const nonReservedName = (name: string) => name !== RESERVED_SERVER_NAME;
+
 const stdioDownstreamSchema = z.object({
-  name: z.string().min(1),
+  name: z
+    .string()
+    .min(1)
+    .refine(nonReservedName, () => ({
+      message: `'${RESERVED_SERVER_NAME}' is reserved for warrant's built-in management tools`,
+    })),
   transport: z.literal('stdio'),
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
@@ -10,7 +19,12 @@ const stdioDownstreamSchema = z.object({
 });
 
 const httpDownstreamSchema = z.object({
-  name: z.string().min(1),
+  name: z
+    .string()
+    .min(1)
+    .refine(nonReservedName, () => ({
+      message: `'${RESERVED_SERVER_NAME}' is reserved for warrant's built-in management tools`,
+    })),
   transport: z.literal('http'),
   url: z.string().url(),
   headers: z.record(z.string()).optional(),

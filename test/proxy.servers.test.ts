@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { describe, expect, it } from 'vitest';
 import { McpProxy } from '@/proxy/proxy';
+import { MANAGEMENT_TOOL_NAMES } from '@/proxy/management-tools';
 import type { WarrantConfigInput } from '@/config/schema';
 
 type Harness = {
@@ -58,7 +59,7 @@ describe('runtime server management', () => {
     await harness.proxy.addServer({ name: 'demo', transport: 'stdio', command: 'unused', args: [] });
 
     const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).toEqual(['demo__echo']);
+    expect(tools.tools.map((tool) => tool.name)).toEqual([...MANAGEMENT_TOOL_NAMES, 'demo__echo']);
     expect(harness.proxy.currentConfig().downstream).toEqual([
       { name: 'demo', transport: 'stdio', command: 'unused', args: [] },
     ]);
@@ -84,11 +85,14 @@ describe('runtime server management', () => {
       downstream: [{ name: 'demo', transport: 'stdio', command: 'unused', args: [] }],
     });
     const client = await startProxy(harness.proxy);
-    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(['demo__echo']);
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual([
+      ...MANAGEMENT_TOOL_NAMES,
+      'demo__echo',
+    ]);
 
     await harness.proxy.removeServer('demo');
 
-    expect((await client.listTools()).tools).toEqual([]);
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(MANAGEMENT_TOOL_NAMES);
     expect(harness.proxy.currentConfig().downstream).toEqual([]);
     expect(harness.proxy.registry.serversList()).toEqual([]);
     expect(harness.proxy.events.list().events.map((e) => e.kind)).toContain('server.disconnected');
@@ -115,7 +119,10 @@ describe('runtime server management', () => {
     expect(harness.connections.length).toBe(before + 1);
     expect(harness.proxy.currentConfig().downstream.map((d) => d.name)).toEqual(['demo']);
     expect(harness.proxy.registry.serversList().map((s) => s.name)).toEqual(['demo']);
-    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(['demo__echo']);
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual([
+      ...MANAGEMENT_TOOL_NAMES,
+      'demo__echo',
+    ]);
 
     await closeAll(harness.proxy, client, harness.connections);
   });

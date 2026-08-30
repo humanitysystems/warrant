@@ -6,6 +6,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { McpProxy } from '@/proxy/proxy';
+import { MANAGEMENT_TOOL_NAMES } from '@/proxy/management-tools';
 
 describe('streamable HTTP downstream', () => {
   let httpServer: HttpServer;
@@ -69,7 +70,7 @@ describe('streamable HTTP downstream', () => {
     await client.connect(clientSide);
 
     const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).toEqual(['remote__remote_read']);
+    expect(tools.tools.map((tool) => tool.name)).toEqual([...MANAGEMENT_TOOL_NAMES, 'remote__remote_read']);
 
     const result = await client.callTool({ name: 'remote__remote_read', arguments: { q: 1 } });
     expect(JSON.stringify(result.content)).toContain('remote:');

@@ -8,11 +8,12 @@ async function main(): Promise<void> {
   const configPath = process.env.WARRANT_CONFIG ?? 'warrant.yaml';
   const config = await loadConfig(configPath);
   const events = new EventStore({ path: config.storage?.path ?? 'warrant.db' });
-  const proxy = new McpProxy(config, events);
+  const persist = (): Promise<void> => writeConfig(configPath, proxy.currentConfig());
+  const proxy: McpProxy = new McpProxy(config, events, undefined, { persist });
   const production = process.env.NODE_ENV !== 'development';
   const admin = serve({
     fetch: createAdminApp(proxy, production, {
-      save: () => writeConfig(configPath, proxy.currentConfig()),
+      save: persist,
     }).fetch,
     hostname: config.server.host,
     port: config.server.adminPort,

@@ -145,6 +145,16 @@ Management mutations persist back to `warrant.yaml`, but by re-serializing the
 whole document. This **drops comments and reformats** the file — a hand-written
 commented config will not survive a management operation byte-for-byte.
 
+### Built-in management MCP tools
+
+Every MCP client connected to the gateway also sees a fixed set of built-in
+management tools — `warrant__status`, `warrant__list_servers`,
+`warrant__list_tools`, `warrant__events`, `warrant__add_server`,
+`warrant__remove_server`, `warrant__reload_server`, `warrant__approve`, and
+`warrant__deny`. They mirror the CLI and admin API surface and **bypass the
+policy engine**. The name `warrant` is reserved and cannot be used for a
+downstream server. See `skills/warrant/references/api.md` for the full list.
+
 ### Escape hatch
 
 After a server is added, removed, or reloaded, Warrant emits

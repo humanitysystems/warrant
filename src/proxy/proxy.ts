@@ -16,11 +16,21 @@ import { PolicyEngine } from '@/policy/policy-engine';
 import { connectDownstream, type DownstreamConnection } from '@/transport/downstream';
 import { Registry } from '@/proxy/registry';
 import type { RegisteredTool } from '@/proxy/types';
+import {
+  MANAGEMENT_TOOLS,
+  executeManagementTool,
+  isManagementTool,
+  type ManagementToolsEnv,
+} from '@/proxy/management-tools';
 
 type DownstreamState = DownstreamConnection & { name: string };
 export type DownstreamConnector = (
   config: WarrantConfig['downstream'][number],
 ) => Promise<DownstreamConnection>;
+
+export type ProxyOptions = {
+  persist?: () => void | Promise<void>;
+};
 
 export type HoldSnapshot = {
   requestId: string;
@@ -42,16 +52,19 @@ export class McpProxy {
   private readonly server: Server;
   private readonly downstream = new Map<string, DownstreamState>();
   private readonly holds = new Map<string, HoldSnapshot & { settle: PendingHold['settle'] }>();
+  private readonly persistConfig?: ProxyOptions['persist'];
   private connected = false;
 
   constructor(
     configInput: WarrantConfigInput,
     events = new EventStore(),
     private readonly connect: DownstreamConnector = connectDownstream,
+    options: ProxyOptions = {},
   ) {
     const config: WarrantConfig = warrantConfigSchema.parse(configInput);
     this.config = config;
     this.events = events;
+    this.persistConfig = options.persist;
     this.policyEngine = new PolicyEngine(config.policies);
     this.server = new Server(
       { name: 'warrant-proxy', version: '0.1.0' },
@@ -188,6 +201,21 @@ export class McpProxy {
     await this.server.notification({ method: 'notifications/tools/list_changed' });
   }
 
+  private managementToolsEnv(): ManagementToolsEnv {
+    return {
+      currentConfig: () => this.currentConfig(),
+      serversList: () => this.registry.serversList(),
+      toolsList: () => this.registry.toolsList(),
+      eventsList: (query) => this.events.list(query),
+      listHolds: () => this.listHolds(),
+      addServer: (config) => this.addServer(config),
+      removeServer: (name) => this.removeServer(name),
+      reloadServer: (name) => this.reloadServer(name),
+      resolveHold: (requestId, approved) => this.resolveHold(requestId, approved),
+      persist: () => this.persistConfig?.(),
+    };
+  }
+
   private registeredTool(serverName: string, tool: Tool): RegisteredTool {
     const exposedName = `${serverName}__${tool.name}`;
     return { ...tool, exposedName, serverName, downstreamName: tool.name };
@@ -195,9 +223,12 @@ export class McpProxy {
 
   private registerHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.registry
-        .toolsList()
-        .map(({ exposedName, ...tool }) => ({ ...tool, name: exposedName })),
+      tools: [
+        ...MANAGEMENT_TOOLS,
+        ...this.registry
+          .toolsList()
+          .map(({ exposedName, ...tool }) => ({ ...tool, name: exposedName })),
+      ],
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -223,6 +254,24 @@ export class McpProxy {
       };
 
       emit('request.started');
+
+      if (isManagementTool(request.params.name)) {
+        const result = await executeManagementTool(
+          request.params.name,
+          request.params.arguments,
+          this.managementToolsEnv(),
+        );
+        if (result.isError) {
+          const message =
+            result.content[0] && 'text' in result.content[0]
+              ? String(result.content[0].text)
+              : 'management tool failed';
+          emit('request.failed', { error: { message } });
+        } else {
+          emit('request.succeeded');
+        }
+        return result;
+      }
 
       if (!tool) {
         const message = `Unknown proxied tool: ${request.params.name}`;

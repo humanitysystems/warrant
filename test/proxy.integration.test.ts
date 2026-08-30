@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { describe, expect, it } from 'vitest';
 import { McpProxy } from '@/proxy/proxy';
+import { MANAGEMENT_TOOL_NAMES } from '@/proxy/management-tools';
 
 describe('MCP proxy', () => {
   it('mirrors and forwards a tool call without changing its arguments', async () => {
@@ -45,7 +46,7 @@ describe('MCP proxy', () => {
     const tools = await client.listTools();
     const result = await client.callTool({ name: 'demo__echo', arguments: { value: 'hello' } });
 
-    expect(tools.tools.map((tool) => tool.name)).toEqual(['demo__echo']);
+    expect(tools.tools.map((tool) => tool.name)).toEqual([...MANAGEMENT_TOOL_NAMES, 'demo__echo']);
     expect(receivedArguments).toEqual({ value: 'hello' });
     expect(result.content).toEqual([{ type: 'text', text: '{"value":"hello"}' }]);
     expect(proxy.events.list().events.map((event) => event.kind)).toEqual([

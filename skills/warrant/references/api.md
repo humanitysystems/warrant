@@ -51,6 +51,28 @@ names are prefixed `<server>__<tool>`.
 **`POST /api/holds/:requestId/:decision`** — `decision` is `approve` or `deny`.
 Returns `{ "ok": true }`, `404` unknown hold.
 
+## Built-in management MCP tools (`warrant__*`)
+
+Every MCP client connected to the gateway sees a fixed set of built-in
+management tools alongside the mirrored downstream tools. They are namespaced
+`warrant__*` and **bypass the policy engine**. The name `warrant` is reserved
+and cannot be used for a downstream server.
+
+| tool | purpose |
+| --- | --- |
+| `warrant__status` | gateway + proxy summary (mirrors `GET /api/status`) |
+| `warrant__list_servers` | configured downstreams + live status |
+| `warrant__list_tools` | full exposed tool list |
+| `warrant__events` | audit trail |
+| `warrant__add_server` | add + persist a downstream server |
+| `warrant__remove_server` | remove + persist a downstream server |
+| `warrant__reload_server` | disconnect + reconnect a server |
+| `warrant__approve` | approve a held call (confirms a pending request) |
+| `warrant__deny` | deny a held call |
+
+They mirror the CLI surface (`skills/warrant/references/cli.md`) and the admin
+HTTP endpoints above. Results are structured JSON; failures return `isError`.
+
 ## Audit trail
 
 **`GET /api/events`** — newest-first, paginated. Query: `?limit=N` and
