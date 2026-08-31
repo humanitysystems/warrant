@@ -21,6 +21,8 @@ main {
 .panel-heading,
 .topbar > div,
 .connection,
+.topbar-actions,
+.gateway-controls,
 .server > div,
 .event {
   display: flex;
@@ -56,12 +58,48 @@ h2 {
   gap: 8px;
   font-size: 0.8rem;
 }
+.topbar-actions,
+.gateway-controls {
+  gap: 12px;
+}
 .dot {
   background: #74e0a0;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   box-shadow: 0 0 14px #74e0a0;
+}
+.dot.error {
+  background: #ff9292;
+  box-shadow: 0 0 14px #ff9292;
+}
+button {
+  font: inherit;
+  font-size: 0.78rem;
+  color: #dbe2eb;
+  background: #1b2130;
+  border: 1px solid #303846;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+button:hover {
+  background: #232b3d;
+}
+button.danger {
+  color: #ff9292;
+  border-color: #54282e;
+  background: #2a161b;
+}
+button.danger:hover {
+  background: #3d1f26;
+}
+.gateway-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.gateway-error {
+  margin: -20px 0 20px;
 }
 .status-grid {
   display: grid;
@@ -109,7 +147,8 @@ small,
   font-size: 1.05rem;
 }
 .server-list,
-.tool-list {
+.tool-list,
+.hold-list {
   display: grid;
   gap: 9px;
 }
@@ -127,6 +166,12 @@ small,
 .tool small {
   display: block;
   margin-top: 6px;
+}
+.server-actions,
+.add-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 .badge {
   font-size: 0.65rem;
@@ -163,13 +208,22 @@ small,
 .events-panel {
   min-height: 340px;
 }
-.events-panel input {
-  border: 1px solid #303846;
-  border-radius: 6px;
+.events-panel input,
+.add-form input,
+.add-form select {
+  font: inherit;
+  font-size: 0.78rem;
   color: #dbe2eb;
   background: #0b0d11;
-  padding: 9px 11px;
+  border: 1px solid #303846;
+  border-radius: 6px;
+  padding: 7px 9px;
   outline: none;
+  margin-top: 4px;
+}
+.events-panel input {
+  padding: 9px 11px;
+  margin-top: 0;
 }
 .event-list {
   display: grid;
@@ -199,55 +253,12 @@ small,
 .event-detail {
   margin-left: auto;
 }
-button {
-  font: inherit;
-  font-size: 0.78rem;
-  color: #dbe2eb;
-  background: #1b2130;
-  border: 1px solid #303846;
-  border-radius: 6px;
-  padding: 7px 12px;
-  cursor: pointer;
-}
-button:hover {
-  background: #232b3d;
-}
-button.danger {
-  color: #ff9292;
-  border-color: #54282e;
-  background: #2a161b;
-}
-button.danger:hover {
-  background: #3d1f26;
-}
-button.add {
+.add {
   margin-top: 12px;
   width: 100%;
 }
-.server-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-.hint {
-  color: #90a6c7;
-  font-size: 0.72rem;
-}
 .add-form {
   border-style: dashed;
-}
-.add-form input,
-.add-form select {
-  font: inherit;
-  font-size: 0.78rem;
-  width: 100%;
-  color: #dbe2eb;
-  background: #0b0d11;
-  border: 1px solid #303846;
-  border-radius: 6px;
-  padding: 7px 9px;
-  outline: none;
-  margin-top: 4px;
 }
 .add-form-grid {
   display: grid;
@@ -258,11 +269,6 @@ button.add {
   display: block;
   font-size: 0.7rem;
   color: #8e9bad;
-}
-.add-form-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
 }
 @media (max-width: 760px) {
   main {
@@ -286,5 +292,10 @@ button.add {
   .event-detail {
     margin-left: 0;
     width: 100%;
+  }
+  .topbar-actions {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 10px;
   }
 }

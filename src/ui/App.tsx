@@ -7,7 +7,6 @@ type Server = {
   tools: Array<{ exposedName: string; downstreamName: string; description?: string }>;
   lastError?: string;
 };
-
 type Tool = Server['tools'][number] & { serverName: string };
 type Event = {
   id: string;
@@ -21,19 +20,17 @@ type Event = {
   ruleId?: string;
   error?: { message: string };
 };
-
-type Hold = {
-  requestId: string;
-  name: string;
-  serverName: string;
-  ruleId: string;
-  heldAt: string;
-};
-
+type Hold = { requestId: string; name: string; serverName: string; ruleId: string; heldAt: string };
 type Status = {
   servers: { total: number; connected: number };
   tools: number;
   clientTransport: string;
+};
+type GatewayStatus = {
+  state: 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
+  url: string;
+  pid?: number;
+  error?: string;
 };
 
 export function App() {
@@ -43,16 +40,16 @@ export function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [holds, setHolds] = useState<Hold[]>([]);
   const [filter, setFilter] = useState('');
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
+  const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [mutationHint, setMutationHint] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
   const refreshHolds = async () => {
     const response = await fetch('/api/holds');
-    const data = (await response.json()) as { holds: Hold[] };
-    setHolds(data.holds);
+    setHolds(((await response.json()) as { holds: Hold[] }).holds);
   };
-
   const refreshManagement = async () => {
     const [statusResponse, serversResponse, toolsResponse] = await Promise.all([
       fetch('/api/status'),
@@ -60,59 +57,58 @@ export function App() {
       fetch('/api/tools'),
     ]);
     setStatus((await statusResponse.json()) as Status);
-    const serverData = (await serversResponse.json()) as { servers: Server[] };
-    const toolData = (await toolsResponse.json()) as { tools: Tool[] };
-    setServers(serverData.servers);
-    setTools(toolData.tools);
+    setServers(((await serversResponse.json()) as { servers: Server[] }).servers);
+    setTools(((await toolsResponse.json()) as { tools: Tool[] }).tools);
   };
-
   const decideHold = async (requestId: string, decision: 'approve' | 'deny') => {
     await fetch(`/api/holds/${requestId}/${decision}`, { method: 'POST' });
     void refreshHolds();
   };
-
+  const controlGateway = async (action: 'start' | 'stop' | 'restart') => {
+    if (!window.warrantDesktop) return;
+    setGatewayError(null);
+    try {
+      setGatewayStatus(await window.warrantDesktop.gateway[action]());
+    } catch (error) {
+      setGatewayError(error instanceof Error ? error.message : String(error));
+    }
+  };
   const reloadServer = async (name: string) => {
     await fetch(`/api/servers/${encodeURIComponent(name)}/reload`, { method: 'POST' });
+    setMutationHint(`Reloaded '${name}'.`);
     setMutationError(null);
-    setMutationHint(
-      `Reloaded '${name}'. A connected MCP client may need its connection refreshed to see tool changes.`,
-    );
     void refreshManagement();
-    void refreshHolds();
   };
-
   const removeServer = async (name: string) => {
     if (!window.confirm(`Remove downstream server '${name}'? This is destructive.`)) return;
     await fetch(`/api/servers/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    setMutationHint(`Removed '${name}'.`);
     setMutationError(null);
-    setMutationHint(
-      `Removed '${name}'. A connected MCP client may need its connection refreshed.`,
-    );
     void refreshManagement();
-    void refreshHolds();
   };
-
   const addServer = async (config: Record<string, unknown>) => {
     const response = await fetch('/api/servers', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(config),
     });
-    const body = (await response.json()) as { servers?: Server[]; error?: string; issues?: unknown };
+    const body = (await response.json()) as { servers?: Server[]; error?: string };
     if (!response.ok) {
       setMutationError(body.error ?? 'Failed to add server.');
       return;
     }
     setMutationError(null);
-    setMutationHint(
-      `Added '${config.name}'. A connected MCP client may need its connection refreshed to see new tools.`,
-    );
+    setMutationHint(`Added '${config.name}'.`);
     setServers(body.servers ?? []);
+    setFormOpen(false);
     void refreshHolds();
   };
 
   useEffect(() => {
-    const load = async () => {
+    const desktop = window.warrantDesktop;
+    const unsubscribe = desktop?.gateway.onStatus(setGatewayStatus);
+    if (desktop) void desktop.gateway.getStatus().then(setGatewayStatus);
+    void (async () => {
       const [statusResponse, serversResponse, toolsResponse, eventsResponse, holdsResponse] =
         await Promise.all([
           fetch('/api/status'),
@@ -122,17 +118,11 @@ export function App() {
           fetch('/api/holds'),
         ]);
       setStatus((await statusResponse.json()) as Status);
-      const serverData = (await serversResponse.json()) as { servers: Server[] };
-      const toolData = (await toolsResponse.json()) as { tools: Tool[] };
-      const eventData = (await eventsResponse.json()) as { events: Event[] };
-      const holdData = (await holdsResponse.json()) as { holds: Hold[] };
-      setServers(serverData.servers);
-      setTools(toolData.tools);
-      setEvents(eventData.events);
-      setHolds(holdData.holds);
-    };
-    void load();
-
+      setServers(((await serversResponse.json()) as { servers: Server[] }).servers);
+      setTools(((await toolsResponse.json()) as { tools: Tool[] }).tools);
+      setEvents(((await eventsResponse.json()) as { events: Event[] }).events);
+      setHolds(((await holdsResponse.json()) as { holds: Hold[] }).holds);
+    })();
     const pollHolds = setInterval(() => void refreshHolds(), 1500);
     const source = new EventSource('/api/events/stream');
     source.onmessage = (message) => {
@@ -144,13 +134,14 @@ export function App() {
     return () => {
       clearInterval(pollHolds);
       source.close();
+      unsubscribe?.();
     };
   }, []);
-
-  const visibleEvents = events.filter((event) => {
-    const searchable = `${event.kind} ${event.name ?? ''} ${event.serverName ?? ''}`.toLowerCase();
-    return searchable.includes(filter.toLowerCase());
-  });
+  const visibleEvents = events.filter((event) =>
+    `${event.kind} ${event.name ?? ''} ${event.serverName ?? ''}`
+      .toLowerCase()
+      .includes(filter.toLowerCase()),
+  );
 
   return (
     <main>
@@ -159,11 +150,42 @@ export function App() {
           <p className="eyebrow">LOCAL MCP CONTROL PLANE</p>
           <h1>Warrant</h1>
         </div>
-        <div className="connection">
-          <span className="dot" />
-          {status ? 'Proxy online' : 'Connecting...'}
+        <div className="topbar-actions">
+          <div className="connection">
+            <span className={`dot ${gatewayStatus?.state === 'error' ? 'error' : ''}`} />
+            {gatewayStatus
+              ? `Gateway ${gatewayStatus.state}`
+              : status
+                ? 'Proxy online'
+                : 'Connecting...'}
+          </div>
+          {window.warrantDesktop && (
+            <div className="gateway-controls">
+              <button
+                onClick={() => void controlGateway('start')}
+                disabled={gatewayStatus?.state === 'running' || gatewayStatus?.state === 'starting'}
+              >
+                Start
+              </button>
+              <button
+                onClick={() => void controlGateway('restart')}
+                disabled={
+                  gatewayStatus?.state === 'starting' || gatewayStatus?.state === 'stopping'
+                }
+              >
+                Restart
+              </button>
+              <button
+                onClick={() => void controlGateway('stop')}
+                disabled={gatewayStatus?.state === 'stopped' || gatewayStatus?.state === 'stopping'}
+              >
+                Stop
+              </button>
+            </div>
+          )}
         </div>
       </header>
+      {gatewayError && <p className="error gateway-error">{gatewayError}</p>}
       <section className="status-grid">
         <Metric
           label="Downstream servers"
@@ -184,7 +206,7 @@ export function App() {
                   <span className="badge connecting">held</span>
                 </div>
                 <small>rule: {hold.ruleId}</small>
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <div className="server-actions">
                   <button onClick={() => void decideHold(hold.requestId, 'approve')}>
                     Approve
                   </button>
@@ -208,10 +230,7 @@ export function App() {
                 </small>
                 <div className="server-actions">
                   <button onClick={() => void reloadServer(server.name)}>Reload</button>
-                  <button
-                    className="danger"
-                    onClick={() => void removeServer(server.name)}
-                  >
+                  <button className="danger" onClick={() => void removeServer(server.name)}>
                     Remove
                   </button>
                 </div>
@@ -219,7 +238,7 @@ export function App() {
               </article>
             ))}
             {!servers.length && <p className="muted">No downstream servers configured.</p>}
-            {mutationHint && <p className="muted hint">{mutationHint}</p>}
+            {mutationHint && <p className="muted">{mutationHint}</p>}
             {mutationError && <p className="error">{mutationError}</p>}
             {formOpen && (
               <AddServerForm
@@ -266,13 +285,7 @@ export function App() {
             <div className="event" key={event.id}>
               <time>{new Date(event.timestamp).toLocaleTimeString()}</time>
               <span
-                className={`event-kind ${
-                  event.kind.includes('blocked') ||
-                  event.kind.includes('failed') ||
-                  event.kind.includes('error')
-                    ? 'danger'
-                    : ''
-                }`}
+                className={`event-kind ${event.kind.includes('blocked') || event.kind.includes('failed') || event.kind.includes('error') ? 'danger' : ''}`}
               >
                 {event.kind}
               </span>
@@ -292,7 +305,6 @@ export function App() {
     </main>
   );
 }
-
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric">
@@ -301,7 +313,6 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="panel">
@@ -312,7 +323,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     </section>
   );
 }
-
 function AddServerForm({
   onAdd,
   onCancel,
@@ -327,21 +337,14 @@ function AddServerForm({
   const [command, setCommand] = useState('');
   const [args, setArgs] = useState('');
   const [url, setUrl] = useState('');
-
   const submit = () => {
     onError('');
-    if (!name.trim()) {
-      onError('Name is required.');
-      return;
-    }
+    if (!name.trim()) return onError('Name is required.');
     if (transport === 'stdio') {
-      if (!command.trim()) {
-        onError('Command is required for stdio servers.');
-        return;
-      }
+      if (!command.trim()) return onError('Command is required for stdio servers.');
       onAdd({
         name: name.trim(),
-        transport: 'stdio',
+        transport,
         command: command.trim(),
         args: args
           .split(',')
@@ -349,19 +352,10 @@ function AddServerForm({
           .filter(Boolean),
       });
     } else {
-      if (!url.trim()) {
-        onError('URL is required for http servers.');
-        return;
-      }
-      onAdd({ name: name.trim(), transport: 'http', url: url.trim() });
+      if (!url.trim()) return onError('URL is required for http servers.');
+      onAdd({ name: name.trim(), transport, url: url.trim() });
     }
-    setName('');
-    setCommand('');
-    setArgs('');
-    setUrl('');
-    onCancel();
   };
-
   return (
     <article className="server add-form">
       <div className="add-form-grid">
@@ -394,7 +388,7 @@ function AddServerForm({
               />
             </label>
             <label>
-              Args (comma-separated)
+              Args
               <input
                 value={args}
                 onChange={(event) => setArgs(event.target.value)}
@@ -414,7 +408,7 @@ function AddServerForm({
         )}
       </div>
       <div className="add-form-actions">
-        <button onClick={() => void submit()}>Add</button>
+        <button onClick={submit}>Add</button>
         <button onClick={onCancel}>Cancel</button>
       </div>
     </article>
