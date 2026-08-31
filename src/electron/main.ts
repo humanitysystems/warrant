@@ -3,10 +3,59 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GatewaySupervisor } from './gateway.js';
 
+export type DesktopPlatform = {
+  createWindow: (preloadPath: string, indexPath: string, devUrl?: string) => Promise<BrowserWindow>;
+  createTray: (onShow: () => void, supervisor: GatewaySupervisor) => Tray;
+  setLoginItem: (enabled: boolean) => void;
+  notify: (title: string, body: string) => void;
+};
+
+export const electronPlatform: DesktopPlatform = {
+  createWindow: async (preloadPath, indexPath, devUrl) => {
+    const window = new BrowserWindow({
+      width: 1440,
+      height: 960,
+      minWidth: 900,
+      minHeight: 640,
+      backgroundColor: '#0b0d11',
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    if (devUrl) await window.loadURL(devUrl);
+    else await window.loadFile(indexPath);
+    return window;
+  },
+  createTray: (onShow, supervisor) => {
+    const nextTray = new Tray(nativeImage.createEmpty());
+    nextTray.setToolTip('Warrant MCP gateway');
+    nextTray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Show Warrant', click: onShow },
+        { type: 'separator' },
+        { label: 'Start gateway', click: () => void supervisor.start() },
+        { label: 'Stop gateway', click: () => void supervisor.stop() },
+        { label: 'Restart gateway', click: () => void supervisor.restart() },
+        { type: 'separator' },
+        { label: 'Quit', click: () => app.quit() },
+      ]),
+    );
+    nextTray.on('click', onShow);
+    return nextTray;
+  },
+  setLoginItem: (enabled) => app.setLoginItemSettings({ openAtLogin: enabled }),
+  notify: (title, body) => {
+    if (Notification.isSupported()) new Notification({ title, body }).show();
+  },
+};
+
 let mainWindow: BrowserWindow | undefined;
-let tray: Tray | undefined;
-let quitting = false;
 let eventMonitor: EventMonitor | undefined;
+let quitting = false;
 
 function createSupervisor(): GatewaySupervisor {
   const appRoot = app.getAppPath();
@@ -14,72 +63,13 @@ function createSupervisor(): GatewaySupervisor {
     serverEntry: join(appRoot, 'dist/server.js'),
     configPath: process.env.WARRANT_CONFIG ?? join(appRoot, 'warrant.yaml'),
     cwd: app.isPackaged ? app.getPath('userData') : process.cwd(),
+    host: process.env.WARRANT_ADMIN_HOST,
+    port: process.env.WARRANT_ADMIN_PORT ? Number(process.env.WARRANT_ADMIN_PORT) : undefined,
   });
 }
 
-async function createWindow(supervisor: GatewaySupervisor): Promise<void> {
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
-    minWidth: 900,
-    minHeight: 640,
-    backgroundColor: '#0b0d11',
-    webPreferences: {
-      preload: join(dirname(fileURLToPath(import.meta.url)), 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  mainWindow.on('closed', () => {
-    mainWindow = undefined;
-  });
-
-  if (process.env.VITE_DEV_SERVER_URL) {
-    await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    await mainWindow.loadFile(join(app.getAppPath(), 'dist/ui/index.html'));
-  }
-
-  supervisor.onStatus((status) => {
-    mainWindow?.webContents.send('gateway:status', status);
-    if (status.state === 'running') {
-      eventMonitor?.close();
-      eventMonitor = new EventMonitor(status.url);
-      void eventMonitor.start();
-    } else if (status.state === 'stopped' || status.state === 'error') {
-      eventMonitor?.close();
-      eventMonitor = undefined;
-    }
-  });
-}
-
-function createTray(supervisor: GatewaySupervisor): void {
-  tray = new Tray(nativeImage.createEmpty());
-  tray.setToolTip('Warrant MCP gateway');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Show Warrant', click: () => showWindow() },
-      { type: 'separator' },
-      { label: 'Start gateway', click: () => void supervisor.start() },
-      { label: 'Stop gateway', click: () => void supervisor.stop() },
-      { label: 'Restart gateway', click: () => void supervisor.restart() },
-      { type: 'separator' },
-      { label: 'Quit', click: () => app.quit() },
-    ]),
-  );
-  tray.on('click', () => showWindow());
-}
-
-function showWindow(): void {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.focus();
-}
-
-function registerIpc(supervisor: GatewaySupervisor): void {
+async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<void> {
+  const supervisor = createSupervisor();
   ipcMain.handle('gateway:get-status', () => supervisor.status);
   ipcMain.handle('gateway:start', async () => {
     await supervisor.start();
@@ -93,16 +83,35 @@ function registerIpc(supervisor: GatewaySupervisor): void {
     await supervisor.restart();
     return supervisor.status;
   });
-}
-
-async function bootstrap(): Promise<void> {
-  const supervisor = createSupervisor();
-  registerIpc(supervisor);
-  await createWindow(supervisor);
-  createTray(supervisor);
-  app.setLoginItemSettings({ openAtLogin: true });
-
-  app.on('activate', showWindow);
+  const show = () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  };
+  mainWindow = await platform.createWindow(
+    join(dirname(fileURLToPath(import.meta.url)), 'preload.js'),
+    join(app.getAppPath(), 'dist/ui/index.html'),
+    process.env.VITE_DEV_SERVER_URL,
+  );
+  mainWindow.on('closed', () => {
+    mainWindow = undefined;
+  });
+  const tray = platform.createTray(show, supervisor);
+  tray.setToolTip('Warrant MCP gateway');
+  platform.setLoginItem(true);
+  supervisor.onStatus((status) => {
+    mainWindow?.webContents.send('gateway:status', status);
+    if (status.state === 'running') {
+      eventMonitor?.close();
+      eventMonitor = new EventMonitor(status.url, platform);
+      void eventMonitor.start();
+    } else if (status.state === 'stopped' || status.state === 'error') {
+      eventMonitor?.close();
+      eventMonitor = undefined;
+    }
+  });
+  app.on('activate', show);
   app.on('before-quit', (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -110,7 +119,6 @@ async function bootstrap(): Promise<void> {
     eventMonitor?.close();
     void supervisor.stop().finally(() => app.quit());
   });
-
   try {
     await supervisor.start();
   } catch (error) {
@@ -118,19 +126,17 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-app.whenReady().then(() => void bootstrap());
-
 class EventMonitor {
   private readonly controller = new AbortController();
   private closed = false;
-
-  constructor(private readonly baseUrl: string) {}
-
+  constructor(
+    private readonly baseUrl: string,
+    private readonly platform: DesktopPlatform,
+  ) {}
   close(): void {
     this.closed = true;
     this.controller.abort();
   }
-
   async start(): Promise<void> {
     while (!this.closed) {
       try {
@@ -146,7 +152,6 @@ class EventMonitor {
       }
     }
   }
-
   private async read(body: ReadableStream<Uint8Array>): Promise<void> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -164,7 +169,6 @@ class EventMonitor {
       reader.releaseLock();
     }
   }
-
   private handleRecord(record: string): void {
     const data = record
       .split(/\r?\n/)
@@ -174,17 +178,18 @@ class EventMonitor {
     if (!data) return;
     try {
       const event = JSON.parse(data) as { kind?: string; name?: string; serverName?: string };
-      if (event.kind !== 'request.held' || !Notification.isSupported()) return;
-      new Notification({
-        title: 'Warrant approval required',
-        body: `${event.serverName ?? 'A server'} requested ${event.name ?? 'a tool call'}`,
-      }).show();
+      if (event.kind === 'request.held')
+        this.platform.notify(
+          'Warrant approval required',
+          `${event.serverName ?? 'A server'} requested ${event.name ?? 'a tool call'}`,
+        );
     } catch {
-      // Ignore malformed events; the browser console remains the source of truth.
+      /* Ignore malformed events. */
     }
   }
 }
-
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
+if (!process.env.VITEST) app.whenReady().then(() => void bootstrap());
+export { bootstrap };
