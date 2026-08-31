@@ -90,7 +90,7 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     mainWindow.focus();
   };
   mainWindow = await platform.createWindow(
-    join(dirname(fileURLToPath(import.meta.url)), 'preload.js'),
+    join(dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
     join(app.getAppPath(), 'dist/ui/index.html'),
     process.env.VITE_DEV_SERVER_URL,
   );

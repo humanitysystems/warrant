@@ -7,7 +7,6 @@ export default defineConfig({
     lib: {
       entry: {
         'electron/main': resolve(__dirname, 'src/electron/main.ts'),
-        'electron/preload': resolve(__dirname, 'src/electron/preload.ts'),
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`,
