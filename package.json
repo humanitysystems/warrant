@@ -18,7 +18,7 @@
     "dev:desktop": "concurrently -k \"npm:dev:ui\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "npm run build:server && npm run build:electron && vite build",
     "build:server": "tsc -p tsconfig.server.json && tsc-alias -p tsconfig.server.json --resolve-full-paths",
-    "build:electron": "tsc -p tsconfig.electron.json && tsc-alias -p tsconfig.electron.json --resolve-full-paths",
+    "build:electron": "vite build --config vite.electron.config.ts",
     "start": "node dist/server.js",
     "desktop": "npm run build && electron .",
     "dist": "npm run build && electron-builder",
