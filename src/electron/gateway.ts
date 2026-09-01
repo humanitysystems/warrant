@@ -92,10 +92,12 @@ export class GatewaySupervisor {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     this.child = child;
+
+    let spawnError: string | undefined;
     child.once('error', (error) => {
       if (this.child !== child) return;
-      const message = error instanceof Error ? error.message : String(error);
-      this.setStatus({ state: 'error', url: this.url, error: message });
+      spawnError = error instanceof Error ? error.message : String(error);
+      this.setStatus({ state: 'error', url: this.url, error: spawnError });
     });
     child.once('exit', (code, signal) => {
       if (this.child !== child) return;
@@ -111,8 +113,9 @@ export class GatewaySupervisor {
       }
     });
 
-    this.startPromise = this.waitUntilHealthy(child).then(
+    this.startPromise = this.waitUntilHealthy(child, () => spawnError).then(
       () => {
+        if (spawnError) throw new Error(spawnError);
         if (this.child === child && this.currentStatus.state === 'starting') {
           this.setStatus({ state: 'running', url: this.url, pid: child.pid });
         }
@@ -122,9 +125,9 @@ export class GatewaySupervisor {
           child.kill('SIGTERM');
           this.child = undefined;
         }
-        const message = error instanceof Error ? error.message : String(error);
+        const message = spawnError ?? (error instanceof Error ? error.message : String(error));
         this.setStatus({ state: 'error', url: this.url, error: message });
-        throw error;
+        throw new Error(message);
       },
     );
     try {
@@ -172,10 +175,15 @@ export class GatewaySupervisor {
     await this.start();
   }
 
-  private async waitUntilHealthy(child: GatewayProcess): Promise<void> {
+  private async waitUntilHealthy(
+    child: GatewayProcess,
+    getSpawnError: () => string | undefined,
+  ): Promise<void> {
     const startedAt = Date.now();
     let lastError = 'Gateway did not become healthy';
     while (this.child === child && Date.now() - startedAt < this.options.startupTimeoutMs) {
+      const se = getSpawnError();
+      if (se) throw new Error(se);
       try {
         if (await this.options.healthCheck(`${this.url}/health`)) return;
       } catch (error) {
