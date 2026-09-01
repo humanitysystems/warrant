@@ -67,8 +67,16 @@ export class GatewaySupervisor {
     return `http://${this.options.host}:${this.options.port}`;
   }
 
+  get configPath(): string | undefined {
+    return this.options.configPath;
+  }
+
   get status(): GatewayStatus {
     return { ...this.currentStatus };
+  }
+
+  setConfigPath(path: string): void {
+    this.options.configPath = path;
   }
 
   onStatus(listener: StatusListener): () => void {
@@ -173,6 +181,11 @@ export class GatewaySupervisor {
   async restart(): Promise<void> {
     await this.stop();
     await this.start();
+  }
+
+  async restartWithConfig(configPath: string): Promise<void> {
+    this.setConfigPath(configPath);
+    await this.restart();
   }
 
   private async waitUntilHealthy(

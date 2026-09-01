@@ -45,6 +45,7 @@ export function App() {
   const [mutationHint, setMutationHint] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [configPath, setConfigPath] = useState<string | null>(null);
 
   const refreshHolds = async () => {
     const response = await fetch('/api/holds');
@@ -106,8 +107,15 @@ export function App() {
 
   useEffect(() => {
     const desktop = window.warrantDesktop;
-    const unsubscribe = desktop?.gateway.onStatus(setGatewayStatus);
-    if (desktop) void desktop.gateway.getStatus().then(setGatewayStatus);
+    const unsubStatus = desktop?.gateway.onStatus(setGatewayStatus);
+    const unsubConfig = desktop?.config.onChanged((info) => setConfigPath(info.path));
+    const unsubSaved = desktop?.config.onSaved((info) => {
+      setMutationHint(`Saved ${info.path.split(/[/\\]/).pop()}.`);
+    });
+    if (desktop) {
+      void desktop.gateway.getStatus().then(setGatewayStatus);
+      void desktop.config.getPath().then(setConfigPath);
+    }
     void (async () => {
       const [statusResponse, serversResponse, toolsResponse, eventsResponse, holdsResponse] =
         await Promise.all([
@@ -134,7 +142,9 @@ export function App() {
     return () => {
       clearInterval(pollHolds);
       source.close();
-      unsubscribe?.();
+      unsubStatus?.();
+      unsubConfig?.();
+      unsubSaved?.();
     };
   }, []);
   const visibleEvents = events.filter((event) =>
@@ -151,6 +161,11 @@ export function App() {
           <h1>Warrant</h1>
         </div>
         <div className="topbar-actions">
+          {configPath && (
+            <span className="config-file" title={configPath}>
+              {configPath.split(/[/\\]/).pop()}
+            </span>
+          )}
           <div className="connection">
             <span className={`dot ${gatewayStatus?.state === 'error' ? 'error' : ''}`} />
             {gatewayStatus

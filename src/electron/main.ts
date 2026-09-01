@@ -1,6 +1,8 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, Tray } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig, writeConfig } from '@/config/loader';
+import type { WarrantConfig } from '@/config/schema';
 import { GatewaySupervisor } from './gateway.js';
 
 export type DesktopPlatform = {
@@ -60,11 +62,171 @@ let mainWindow: BrowserWindow | undefined;
 let eventMonitor: EventMonitor | undefined;
 let quitting = false;
 
+/** Active config state — tracks the currently loaded file and in-memory config. */
+let activeConfigPath: string | null = null;
+let activeConfig: WarrantConfig | null = null;
+
+function buildMenu(supervisor: GatewaySupervisor): Menu {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Config',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            activeConfigPath = null;
+            activeConfig = null;
+            updateWindowTitle();
+            mainWindow?.webContents.send('config:changed', {
+              path: null,
+              config: null,
+            });
+          },
+        },
+        {
+          label: 'Open Config…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => void handleOpenConfig(supervisor),
+        },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => void handleSaveConfig(),
+        },
+        {
+          label: 'Save As…',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => void handleSaveAsConfig(supervisor),
+        },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }],
+    },
+  ];
+  return Menu.buildFromTemplate(template);
+}
+
+function updateWindowTitle(): void {
+  if (!mainWindow) return;
+  const suffix = activeConfigPath ? ` — ${activeConfigPath.split(/[/\\]/).pop()}` : '';
+  mainWindow.setTitle(`Warrant${suffix}`);
+}
+
+async function handleOpenConfig(supervisor: GatewaySupervisor): Promise<void> {
+  const result = await dialog.showOpenDialog({
+    title: 'Open Warrant Config',
+    filters: [
+      { name: 'YAML', extensions: ['yaml', 'yml'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+    properties: ['openFile'],
+  });
+  if (result.canceled || !result.filePaths[0]) return;
+
+  const filePath = result.filePaths[0];
+  try {
+    const config = await loadConfig(filePath);
+    activeConfigPath = filePath;
+    activeConfig = config;
+    updateWindowTitle();
+    await supervisor.restartWithConfig(filePath);
+    mainWindow?.webContents.send('config:changed', {
+      path: activeConfigPath,
+      config: activeConfig,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox('Invalid Config', `Failed to load config:\n${message}`);
+  }
+}
+
+async function handleSaveConfig(): Promise<void> {
+  if (!activeConfigPath || !activeConfig) return;
+  try {
+    await writeConfig(activeConfigPath, activeConfig);
+    mainWindow?.webContents.send('config:saved', { path: activeConfigPath });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox('Save Failed', `Could not save config:\n${message}`);
+  }
+}
+
+async function handleSaveAsConfig(supervisor: GatewaySupervisor): Promise<void> {
+  const result = await dialog.showSaveDialog({
+    title: 'Save Warrant Config As',
+    defaultPath: activeConfigPath ?? 'warrant.yaml',
+    filters: [
+      { name: 'YAML', extensions: ['yaml', 'yml'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return;
+
+  const filePath = result.filePath;
+  try {
+    // If no in-memory config yet, try to load from the current path.
+    const configToSave = activeConfig ?? (activeConfigPath ? await loadConfig(activeConfigPath) : null);
+    if (!configToSave) {
+      dialog.showErrorBox('No Config', 'No config loaded to save.');
+      return;
+    }
+    await writeConfig(filePath, configToSave);
+    activeConfigPath = filePath;
+    activeConfig = configToSave;
+    updateWindowTitle();
+    await supervisor.restartWithConfig(filePath);
+    mainWindow?.webContents.send('config:changed', {
+      path: activeConfigPath,
+      config: activeConfig,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox('Save Failed', `Could not save config:\n${message}`);
+  }
+}
+
 function createSupervisor(): GatewaySupervisor {
   const appRoot = app.getAppPath();
+  // When packaged, prefer the user-editable warrant.yaml from extraResources.
+  // process.resourcesPath points to the resources/ dir next to the executable.
+  const defaultConfig = app.isPackaged
+    ? join(process.resourcesPath, 'warrant.yaml')
+    : join(appRoot, 'warrant.yaml');
   return new GatewaySupervisor({
     serverEntry: join(appRoot, 'dist/server.js'),
-    configPath: process.env.WARRANT_CONFIG ?? join(appRoot, 'warrant.yaml'),
+    configPath: process.env.WARRANT_CONFIG ?? defaultConfig,
     cwd: app.isPackaged ? app.getPath('userData') : process.cwd(),
     host: process.env.WARRANT_ADMIN_HOST,
     port: process.env.WARRANT_ADMIN_PORT ? Number(process.env.WARRANT_ADMIN_PORT) : undefined,
@@ -86,6 +248,18 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     await supervisor.restart();
     return supervisor.status;
   });
+
+  // Config IPC handlers
+  ipcMain.handle('config:getPath', () => activeConfigPath);
+  ipcMain.handle('config:get', () => ({
+    path: activeConfigPath,
+    config: activeConfig,
+  }));
+  ipcMain.handle('config:set', (_event, config: WarrantConfig) => {
+    activeConfig = config;
+    return { path: activeConfigPath, config: activeConfig };
+  });
+
   const show = () => {
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -108,6 +282,11 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     join(dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
     devUrl ? { url: devUrl } : { url: supervisor.url },
   );
+
+  // Set the File menu and initial window title.
+  Menu.setApplicationMenu(buildMenu(supervisor));
+  updateWindowTitle();
+
   mainWindow.on('closed', () => {
     mainWindow = undefined;
   });
