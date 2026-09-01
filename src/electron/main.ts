@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, T
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, writeConfig } from '@/config/loader';
-import type { WarrantConfig } from '@/config/schema';
+import { warrantConfigSchema, type WarrantConfig } from '@/config/schema';
 import { GatewaySupervisor } from './gateway.js';
 
 export type DesktopPlatform = {
@@ -256,7 +256,7 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     config: activeConfig,
   }));
   ipcMain.handle('config:set', (_event, config: WarrantConfig) => {
-    activeConfig = config;
+    activeConfig = warrantConfigSchema.parse(config);
     return { path: activeConfigPath, config: activeConfig };
   });
 
