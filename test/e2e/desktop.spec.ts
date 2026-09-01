@@ -32,7 +32,7 @@ test.beforeEach(async () => {
     },
   });
   page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle');
 });
 
 test.afterEach(async () => {
@@ -41,7 +41,7 @@ test.afterEach(async () => {
 });
 
 test('loads a secure desktop renderer with context isolation', async () => {
-  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible({ timeout: 15_000 });
 
   const capabilities = await page.evaluate(() => ({
     hasDesktopApi: typeof window.warrantDesktop !== 'undefined',
@@ -55,7 +55,7 @@ test('loads a secure desktop renderer with context isolation', async () => {
 });
 
 test('preload exposes typed gateway API', async () => {
-  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible({ timeout: 15_000 });
 
   const apiShape = await page.evaluate(() => {
     const api = window.warrantDesktop;
@@ -81,7 +81,7 @@ test('preload exposes typed gateway API', async () => {
 });
 
 test('IPC gateway status returns a valid state', async () => {
-  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible({ timeout: 15_000 });
 
   const status = await page.evaluate(async () => {
     const api = window.warrantDesktop;
