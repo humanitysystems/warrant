@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 export default defineConfig({
   build: {
     outDir: 'dist',
+    emptyOutDir: false,
     lib: {
       entry: {
         'electron/main': resolve(__dirname, 'src/electron/main.ts'),
