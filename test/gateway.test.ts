@@ -63,7 +63,7 @@ describe('GatewaySupervisor', () => {
     });
 
     it('transitions through starting → running', async () => {
-      const { supervisor, child } = createSupervisor({
+      const { supervisor } = createSupervisor({
         healthCheck: async () => true,
       });
       const states: string[] = [];
@@ -289,7 +289,7 @@ describe('GatewaySupervisor', () => {
         healthCheck: async () => true,
       });
 
-      const [r1, r2] = await Promise.all([supervisor.start(), supervisor.start()]);
+      await Promise.all([supervisor.start(), supervisor.start()]);
 
       expect(spawnCount).toBe(1);
       expect(supervisor.status.state).toBe('running');
@@ -321,7 +321,6 @@ describe('GatewaySupervisor', () => {
 
   describe('configuration', () => {
     it('uses custom host and port for URL', async () => {
-      const { supervisor } = createSupervisor();
       const custom = new GatewaySupervisor({
         serverEntry: '/app/dist/server.js',
         host: '0.0.0.0',
