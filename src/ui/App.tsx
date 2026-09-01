@@ -108,13 +108,13 @@ export function App() {
   useEffect(() => {
     const desktop = window.warrantDesktop;
     const unsubStatus = desktop?.gateway.onStatus(setGatewayStatus);
-    const unsubConfig = desktop?.config.onChanged((info) => setConfigPath(info.path));
-    const unsubSaved = desktop?.config.onSaved((info) => {
+    const unsubConfig = desktop?.config?.onChanged((info) => setConfigPath(info.path));
+    const unsubSaved = desktop?.config?.onSaved((info) => {
       setMutationHint(`Saved ${info.path.split(/[/\\]/).pop()}.`);
     });
     if (desktop) {
       void desktop.gateway.getStatus().then(setGatewayStatus);
-      void desktop.config.getPath().then(setConfigPath);
+      void desktop.config?.getPath().then(setConfigPath);
     }
     void (async () => {
       const [statusResponse, serversResponse, toolsResponse, eventsResponse, holdsResponse] =
