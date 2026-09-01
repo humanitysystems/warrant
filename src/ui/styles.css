@@ -260,6 +260,54 @@ small,
 .add-form {
   border-style: dashed;
 }
+.add-form-mode {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+.add-form-mode button {
+  flex: 1;
+  border-radius: 0;
+  background: #0b0d11;
+  border: 1px solid #303846;
+  color: #8e9bad;
+  opacity: 0.7;
+}
+.add-form-mode button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.add-form-mode button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.add-form-mode button.active {
+  background: #1b2130;
+  color: #dbe2eb;
+  opacity: 1;
+  border-color: #4a6fa5;
+}
+.json-paste-label {
+  display: block;
+  font-size: 0.7rem;
+  color: #8e9bad;
+  margin-bottom: 8px;
+}
+.json-paste-label textarea {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  width: 100%;
+  color: #dbe2eb;
+  background: #0b0d11;
+  border: 1px solid #303846;
+  border-radius: 6px;
+  padding: 8px 10px;
+  outline: none;
+  resize: vertical;
+  margin-top: 4px;
+}
+.json-paste-label textarea:focus {
+  border-color: #4a6fa5;
+}
+
 .add-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

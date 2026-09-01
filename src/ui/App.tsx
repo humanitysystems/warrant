@@ -80,7 +80,7 @@ export function App() {
     void refreshManagement();
   };
   const removeServer = async (name: string) => {
-    if (!window.confirm(`Remove downstream server '${name}'? This is destructive.`)) return;
+    if (!window.confirm(`Remove MCP server '${name}'? This is destructive.`)) return;
     await fetch(`/api/servers/${encodeURIComponent(name)}`, { method: 'DELETE' });
     setMutationHint(`Removed '${name}'.`);
     setMutationError(null);
@@ -188,7 +188,7 @@ export function App() {
       {gatewayError && <p className="error gateway-error">{gatewayError}</p>}
       <section className="status-grid">
         <Metric
-          label="Downstream servers"
+          label="MCP servers"
           value={`${status?.servers.connected ?? 0}/${status?.servers.total ?? 0}`}
         />
         <Metric label="Mirrored tools" value={String(status?.tools ?? 0)} />
@@ -217,7 +217,7 @@ export function App() {
             {!holds.length && <p className="muted">No calls waiting for confirmation.</p>}
           </div>
         </Panel>
-        <Panel title="Downstream servers">
+        <Panel title="MCP servers">
           <div className="server-list">
             {servers.map((server) => (
               <article className="server" key={server.name}>
@@ -237,7 +237,7 @@ export function App() {
                 {server.lastError && <p className="error">{server.lastError}</p>}
               </article>
             ))}
-            {!servers.length && <p className="muted">No downstream servers configured.</p>}
+            {!servers.length && <p className="muted">No MCP servers configured.</p>}
             {mutationHint && <p className="muted">{mutationHint}</p>}
             {mutationError && <p className="error">{mutationError}</p>}
             {formOpen && (
@@ -332,13 +332,33 @@ function AddServerForm({
   onCancel: () => void;
   onError: (message: string) => void;
 }) {
+  const [mode, setMode] = useState<'form' | 'json'>('form');
   const [name, setName] = useState('');
   const [transport, setTransport] = useState<'stdio' | 'http'>('stdio');
   const [command, setCommand] = useState('');
   const [args, setArgs] = useState('');
   const [url, setUrl] = useState('');
+  const [jsonText, setJsonText] = useState('');
   const submit = () => {
     onError('');
+    if (mode === 'json') {
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(jsonText) as Record<string, unknown>;
+      } catch {
+        return onError('Invalid JSON.');
+      }
+      if (!parsed.name || typeof parsed.name !== 'string')
+        return onError('JSON must include a "name" field.');
+      if (!parsed.transport)
+        return onError('JSON must include a "transport" field (stdio or http).');
+      if (parsed.transport === 'stdio' && !parsed.command)
+        return onError('stdio config must include a "command" field.');
+      if (parsed.transport === 'http' && !parsed.url)
+        return onError('http config must include a "url" field.');
+      onAdd(parsed);
+      return;
+    }
     if (!name.trim()) return onError('Name is required.');
     if (transport === 'stdio') {
       if (!command.trim()) return onError('Command is required for stdio servers.');
@@ -358,55 +378,79 @@ function AddServerForm({
   };
   return (
     <article className="server add-form">
-      <div className="add-form-grid">
-        <label>
-          Name
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="server-name"
+      <div className="add-form-mode">
+        <button className={mode === 'form' ? 'active' : ''} onClick={() => setMode('form')}>
+          Form
+        </button>
+        <button className={mode === 'json' ? 'active' : ''} onClick={() => setMode('json')}>
+          Paste JSON
+        </button>
+      </div>
+      {mode === 'json' ? (
+        <label className="json-paste-label">
+          Config JSON
+          <textarea
+            value={jsonText}
+            onChange={(event) => setJsonText(event.target.value)}
+            placeholder={
+              transport === 'http'
+                ? '{\n  "name": "my-server",\n  "transport": "http",\n  "url": "http://127.0.0.1:8907/mcp"\n}'
+                : '{\n  "name": "my-server",\n  "transport": "stdio",\n  "command": "node",\n  "args": ["./server.mjs"]\n}'
+            }
+            rows={8}
           />
         </label>
-        <label>
-          Transport
-          <select
-            value={transport}
-            onChange={(event) => setTransport(event.target.value as 'stdio' | 'http')}
-          >
-            <option value="stdio">stdio</option>
-            <option value="http">http</option>
-          </select>
-        </label>
-        {transport === 'stdio' ? (
-          <>
-            <label>
-              Command
-              <input
-                value={command}
-                onChange={(event) => setCommand(event.target.value)}
-                placeholder="node"
-              />
-            </label>
-            <label>
-              Args
-              <input
-                value={args}
-                onChange={(event) => setArgs(event.target.value)}
-                placeholder="./server.mjs"
-              />
-            </label>
-          </>
-        ) : (
+      ) : (
+        <div className="add-form-grid">
           <label>
-            URL
+            Name
             <input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="http://127.0.0.1:8907/mcp"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="server-name"
             />
           </label>
-        )}
-      </div>
+          <label>
+            Transport
+            <select
+              value={transport}
+              onChange={(event) => setTransport(event.target.value as 'stdio' | 'http')}
+            >
+              <option value="stdio">stdio</option>
+              <option value="http">http</option>
+            </select>
+          </label>
+          {transport === 'stdio' ? (
+            <>
+              <label>
+                Command
+                <input
+                  value={command}
+                  onChange={(event) => setCommand(event.target.value)}
+                  placeholder="node"
+                />
+              </label>
+              <label>
+                Args
+                <input
+                  value={args}
+                  onChange={(event) => setArgs(event.target.value)}
+                  placeholder="./server.mjs"
+                />
+              </label>
+            </>
+          ) : (
+            <label>
+              URL
+              <input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="http://127.0.0.1:8907/mcp"
+              />
+            </label>
+          )}
+        </div>
+      )}
       <div className="add-form-actions">
         <button onClick={submit}>Add</button>
         <button onClick={onCancel}>Cancel</button>
