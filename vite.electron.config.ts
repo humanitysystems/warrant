@@ -23,7 +23,8 @@ export default defineConfig({
         'node:os',
       ],
       output: {
-        preserveModules: false,
+        preserveModules: true,
+        preserveModulesRoot: 'src',
       },
     },
     target: 'node22',
