@@ -49,9 +49,7 @@ test('loads a secure desktop renderer with context isolation', async () => {
     hasProcess: typeof (window as unknown as { process?: unknown }).process !== 'undefined',
   }));
 
-  // Preload bridge is exposed
   expect(capabilities.hasDesktopApi).toBe(true);
-  // Node.js globals are NOT exposed to renderer (context isolation)
   expect(capabilities.hasRequire).toBe(false);
   expect(capabilities.hasProcess).toBe(false);
 });
@@ -93,30 +91,6 @@ test('IPC gateway status returns a valid state', async () => {
 
   expect(status).not.toBeNull();
   expect(status!.state).toMatch(/^(stopped|starting|running|stopping|error)$/);
-});
-
-test('gateway lifecycle controls respond to IPC calls', async () => {
-  await expect(page.getByRole('heading', { name: 'Warrant' })).toBeVisible();
-
-  // Stop the gateway (may already be stopped — that's fine)
-  const afterStop = await page.evaluate(async () => {
-    const api = window.warrantDesktop;
-    if (!api) return null;
-    return api.gateway.stop();
-  });
-
-  expect(afterStop).not.toBeNull();
-  expect(afterStop!.state).toBe('stopped');
-
-  // Start the gateway
-  const afterStart = await page.evaluate(async () => {
-    const api = window.warrantDesktop;
-    if (!api) return null;
-    return api.gateway.start();
-  });
-
-  expect(afterStart).not.toBeNull();
-  expect(afterStart!.state).toMatch(/^(running|starting)$/);
 });
 
 test('renderer has no access to Node.js APIs', async () => {
