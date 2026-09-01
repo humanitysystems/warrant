@@ -4,14 +4,17 @@ import { fileURLToPath } from 'node:url';
 import { GatewaySupervisor } from './gateway.js';
 
 export type DesktopPlatform = {
-  createWindow: (preloadPath: string, indexPath: string, devUrl?: string) => Promise<BrowserWindow>;
+  createWindow: (
+    preloadPath: string,
+    options: { file?: string; url?: string },
+  ) => Promise<BrowserWindow>;
   createTray: (onShow: () => void, supervisor: GatewaySupervisor) => Tray;
   setLoginItem: (enabled: boolean) => void;
   notify: (title: string, body: string) => void;
 };
 
 export const electronPlatform: DesktopPlatform = {
-  createWindow: async (preloadPath, indexPath, devUrl) => {
+  createWindow: async (preloadPath, { file, url }) => {
     const window = new BrowserWindow({
       width: 1440,
       height: 960,
@@ -26,8 +29,8 @@ export const electronPlatform: DesktopPlatform = {
       },
     });
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    if (devUrl) await window.loadURL(devUrl);
-    else await window.loadFile(indexPath);
+    if (url) await window.loadURL(url);
+    else if (file) await window.loadFile(file);
     return window;
   },
   createTray: (onShow, supervisor) => {
@@ -89,10 +92,21 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     mainWindow.show();
     mainWindow.focus();
   };
+
+  // Start the gateway first so the UI can reach the API.
+  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  try {
+    await supervisor.start();
+  } catch (error) {
+    console.error('Unable to start Warrant gateway:', error);
+  }
+
+  // In dev mode, load from Vite (proxy forwards /api to gateway).
+  // In production, load from the gateway's own HTTP server so
+  // relative /api/... fetch calls resolve correctly.
   mainWindow = await platform.createWindow(
     join(dirname(fileURLToPath(import.meta.url)), 'preload.cjs'),
-    join(app.getAppPath(), 'dist/ui/index.html'),
-    process.env.VITE_DEV_SERVER_URL,
+    devUrl ? { url: devUrl } : { url: supervisor.url },
   );
   mainWindow.on('closed', () => {
     mainWindow = undefined;
@@ -119,11 +133,6 @@ async function bootstrap(platform: DesktopPlatform = electronPlatform): Promise<
     eventMonitor?.close();
     void supervisor.stop().finally(() => app.quit());
   });
-  try {
-    await supervisor.start();
-  } catch (error) {
-    console.error('Unable to start Warrant gateway:', error);
-  }
 }
 
 class EventMonitor {
