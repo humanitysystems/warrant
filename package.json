@@ -12,10 +12,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:ui\"",
+    "dev": "npm run dev:web",
     "dev:server": "tsx src/server.ts",
-    "dev:ui": "vite --host 127.0.0.1",
-    "dev:desktop": "concurrently -k \"npm:dev:ui\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "dev:desktop": "concurrently -k \"npm:dev:vite\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "npm run build:server && npm run build:electron && vite build",
     "build:server": "tsc -p tsconfig.server.json && tsc-alias -p tsconfig.server.json --resolve-full-paths",
     "build:electron": "vite build --config vite.electron.config.ts && npx esbuild src/electron/preload.ts --bundle --platform=node --format=cjs --outfile=dist/electron/preload.cjs --external:electron",
@@ -29,7 +28,9 @@
     "test": "vitest run",
     "test:ui": "playwright test --config playwright.ui.config.ts",
     "test:e2e": "npm run build && playwright test --config playwright.config.ts",
-    "test:e2e:headed": "npm run build && playwright test --config playwright.config.ts --headed"
+    "test:e2e:headed": "npm run build && playwright test --config playwright.config.ts --headed",
+    "dev:web": "concurrently -k \"npm:dev:server\" \"npm:dev:vite\"",
+    "dev:vite": "vite --host 127.0.0.1"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",
@@ -69,11 +70,90 @@
     "asar": true,
     "files": [
       "dist/**/*",
-      "warrant.yaml",
       "package.json"
     ],
     "directories": {
       "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "warrant.yaml",
+        "to": "warrant.yaml"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Warrant",
+      "uninstallDisplayName": "Warrant",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Development",
+      "synopsis": "Local transparent MCP proxy with an admin console",
+      "description": "Warrant sits between AI agents and MCP servers, mirroring tools, forwarding requests, and evaluating every call against a policy engine."
     }
   }
 }
