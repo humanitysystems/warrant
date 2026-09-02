@@ -1,4 +1,4 @@
-import type { WarrantDesktopApi } from '@/electron/preload';
+import type { WarrantDesktopApi, ConfigInfo } from '@/electron/preload';
 import type { GatewayStatus } from '@/electron/gateway';
 
 declare global {
@@ -7,4 +7,4 @@ declare global {
   }
 }
 
-export type { GatewayStatus };
+export type { GatewayStatus, ConfigInfo };
